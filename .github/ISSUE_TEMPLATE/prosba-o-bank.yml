@@ -1,0 +1,35 @@
+name: Prośba o bank
+description: Twój bank nie jest obsługiwany? Daj znać — liczba zgłoszeń decyduje o kolejności.
+title: "Bank: "
+labels: ["bank"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ⚠ **Nie wklejaj prawdziwych transakcji, numerów kont ani nazwisk.**
+        Wystarczy nagłówek pliku i 1–2 wiersze z wymyślonymi danymi.
+  - type: input
+    id: bank
+    attributes:
+      label: Bank
+      placeholder: np. PKO BP, mBank, ING
+    validations:
+      required: true
+  - type: dropdown
+    id: format
+    attributes:
+      label: Format eksportu
+      options: [CSV, PDF, XLS/XLSX, inny]
+    validations:
+      required: true
+  - type: textarea
+    id: naglowek
+    attributes:
+      label: Nagłówek pliku + 1–2 wiersze z WYMYŚLONYMI danymi
+      render: text
+  - type: dropdown
+    id: system
+    attributes:
+      label: System / przeglądarka
+      multiple: true
+      options: [Windows, macOS, Linux, Chrome/Edge, Firefox, Safari]

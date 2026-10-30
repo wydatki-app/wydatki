@@ -1,0 +1,19 @@
+name: Testy
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  testy:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Budowanie
+        run: python3 -I build.py
+      - name: Testy w Chrome
+        run: WYDATKI_CHROMIUM="$(command -v google-chrome)" python3 -I testy/test_przegladarka.py --przegladarka chromium
+      - name: Testy w Firefox
+        continue-on-error: true      # Firefox headless na runnerze bywa niestabilny — informacyjnie
+        run: python3 -I testy/test_przegladarka.py --przegladarka firefox

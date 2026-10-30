@@ -1,0 +1,84 @@
+<header class="top"><div class="top-in">
+  <div class="brand">Wydatki <small>wczytano <span id="gen"></span></small></div>
+  <div class="per">
+    <button class="iconbtn" id="per-prev" title="Poprzedni miesiąc">‹</button>
+    <select id="tabs" aria-label="Okres"></select>
+    <button class="iconbtn" id="per-next" title="Następny miesiąc">›</button>
+    <button id="btn-przelicz" class="tab" style="display:none">↻ Przelicz</button>
+    <button class="iconbtn" id="theme-btn" type="button" aria-label="Zmień motyw">◐</button>
+  </div>
+  <nav class="nav" id="nav">
+    <button data-v="przeglad">Przegląd</button>
+    <button data-v="transakcje">Transakcje</button>
+    <button data-v="budzety">Budżety</button>
+    <button data-v="trendy">Trendy</button>
+    <button data-v="tagi">Tagi i wyjazdy</button>
+    <button data-v="ustawienia">Kategorie</button>
+  </nav>
+</div></header>
+<main class="wrap">
+
+<section class="view" data-view="przeglad">
+  <div class="kpis" id="kpis"></div>
+  <div class="grid">
+    <div class="card"><h2>Koszt życia pod FIRE <span class="tag" id="fire-scope"></span></h2>
+      <p class="desc">Od wszystkich wydatków do bieżącego, powtarzalnego kosztu życia — to on wyznacza kapitał FIRE.</p>
+      <div id="fire"></div></div>
+    <div class="card"><h2>Tempo wydatków <span class="tag" id="pace-scope"></span></h2>
+      <p class="desc">Narastająco w miesiącu vs poprzedni miesiąc i średnia z pełnych miesięcy.</p>
+      <div id="pace"></div></div>
+  </div>
+  <div class="card"><h2>Kategorie <span class="tag" id="cat-hint"></span></h2>
+    <p class="desc">Klik w kategorię = lista transakcji. Δ = różnica względem średniej z poprzednich pełnych miesięcy.</p>
+    <div class="donut-wrap"><div id="donut"></div><div class="legend" id="legend"></div></div>
+    <div id="drill"></div>
+  </div>
+  <div class="card"><h2>Największe transakcje <span class="tag" id="top-scope"></span></h2>
+    <p class="desc">Klik ○ w wierszu = oznacz „do zwrotu” (znika z sum).</p>
+    <div id="top"></div></div>
+</section>
+
+<section class="view" data-view="transakcje">
+  <div class="card"><h2>Transakcje <span class="tag" id="tx-sum"></span></h2>
+    <p class="desc">Wyszukiwanie po opisie, filtr kategorii i tagu. Zmiana kategorii w liście rozwijanej, klik w wiersz = do zwrotu.</p>
+    <div class="filters">
+      <input type="search" id="tx-q" placeholder="Szukaj w opisie… (np. orlen, biedronka)">
+      <select id="tx-cat"></select><select id="tx-tag"></select>
+      <select id="tx-sort"><option value="d">najnowsze</option><option value="k">największe</option></select>
+    </div>
+    <div id="txlist"></div></div>
+  <div class="card" id="refunds-card" style="display:none">
+    <h2>Do zwrotu <span class="tag" id="refunds-sum"></span></h2>
+    <p class="desc">Wyłączone z sum. Klik w wiersz = przywróć do wydatków.</p><div id="refunds"></div></div>
+</section>
+
+<section class="view" data-view="budzety">
+  <div class="card"><h2>Budżety <span class="tag" id="bud-scope"></span></h2>
+    <p class="desc">Stan w miesiącu / roku wybranym w nagłówku (przy „Cały okres” — bieżący).</p>
+    <div id="budzety"></div></div>
+</section>
+
+<section class="view" data-view="trendy">
+  <div class="card"><h2>Miesiące — struktura wydatków</h2>
+    <p class="desc">Warstwy jak w dekompozycji FIRE. Przerywana linia = cel dochodu pasywnego. Bieżący miesiąc jest niepełny.</p>
+    <div id="months-chart"></div></div>
+  <div class="card"><h2>Porównanie miesięcy <span class="tag">per kategoria</span></h2><div id="compare"></div></div>
+  <div class="grid">
+    <div class="card"><h2>Trend tygodniowy <span class="tag" id="weeks-scope"></span></h2><div id="weeks"></div></div>
+    <div class="card"><h2>Powtarzalne obciążenia <span class="tag" id="subs-sum"></span></h2><div id="subs"></div></div>
+  </div>
+  <div class="card"><h2>Zwroty i wpływy dodatkowe <span class="tag" id="wpl-sum"></span></h2><div id="wplywy"></div></div>
+</section>
+
+<section class="view" data-view="tagi">
+  <div class="card"><h2>Tagi — wyjazdy i projekty</h2>
+    <p class="desc">Okres wybierasz tutaj — niezależnie od okresu w nagłówku.</p><div id="tagi"></div></div>
+</section>
+
+<section class="view" data-view="ustawienia">
+  <div class="card"><h2>Kategorie</h2><div id="kategorie"></div></div>
+</section>
+
+<div class="foot">Źródła: Millennium · VeloBank · Revolut · Alior · przelewy własne i spłaty kart wykluczone · gotówka po wypłacie poza systemem.</div>
+</main>
+<div class="tip" id="tip"></div>

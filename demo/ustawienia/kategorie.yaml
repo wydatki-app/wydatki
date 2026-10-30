@@ -1,0 +1,88 @@
+# Reguły kategoryzacji — DEMO (fikcyjny użytkownik Jan Kowalski)
+# Format: KATEGORIA -> lista wzorców (regex, case-insensitive) dopasowywanych do OPISU + ODBIORCY.
+# Pierwsza pasująca reguła wygrywa (kolejność ma znaczenie).
+
+# --- WYKLUCZENIA: przepływy własne, spłaty kart ---
+_wyklucz:
+  - "jan kowalski"
+  - "kowalski jan"
+  - "przelew własny"
+  - "spł.karty"
+  - "spłata karty"
+  - "revolut"                # zasilenie własnego Revolut
+  - "podatek od odsetek"
+  - "kapitalizacja"
+  - "wynagrodzenie"           # pensja = dochód podstawowy, nie „wpływ dodatkowy”
+
+kategorie:
+  Podróże:
+    - "booking|airbnb|hotel|nocleg"
+    - "ryanair|wizzair|lot\.com"
+    - "konzum|makarska|split|jadrolinija|dubrovnik"
+
+  Jedzenie_dom:
+    - "biedronka|lidl|carrefour|auchan|\bdino\b|stokrotka|zabka|żabka|netto|aldi|kaufland"
+    - "piekarnia|warzywniak"
+
+  Jedzenie_na_mieście:
+    - "mcdonald|kfc|pizza|kebab|sushi|restauracja|bistro|kawiarnia|starbucks|costa coffee"
+    - "pyszne\.pl|wolt|uber \*?eats|glovo"
+
+  Subskrypcje:
+    - "netflix|spotify|disney|hbo|\bmax\b|youtube premium|prime video"
+    - "chatgpt|openai|claude|anthropic|github"
+    - "icloud|google one|proton"
+
+  Dom_i_rachunki:
+    - "pge|energa|tauron|pgnig|wodociąg|wodociag"
+    - "orange|\bplay\b|\bplus\b|t-mobile|netia|\bupc\b"
+    - "czynsz|wspólnota|wspolnota"
+    - "pzu|warta|ergo hestia|link4"
+    - "castorama|leroy merlin|\bobi\b|ikea"
+
+  Zdrowie_i_uroda:
+    - "apteka|doz|super-pharm|rossmann|hebe"
+    - "medicover|luxmed|lux med|enel-med|dentysta|stomatolog"
+    - "fryzjer|barber"
+
+  Transport:
+    - "orlen|\bbp\b|shell|circle k|\bmoya\b|\bamic\b"
+    - "pkp|intercity|jakdojade|bolt|uber(?! \*?eats)|free now"
+    - "parking|autostrada|myjnia"
+
+  Zakupy:
+    - "allegro|amazon|zalando|decathlon|media expert|rtv euro|x-kom|empik|pepco|h&m|reserved"
+
+  Rozrywka:
+    - "kino|cinema city|helios|multikino|teatr|ebilet|going\.|steam|playstation"
+    - "multisport|siłownia|silownia|basen"
+
+  Gotówka_BLIK:
+    - "wypłata z bankomatu|bankomat|atm"
+    - "blik przelew na telefon"
+
+  Rodzina_i_prezenty:
+    - "kwiaciarnia|prezent|fundacja|darowizna"
+
+  Inne_nieskategoryzowane: []
+
+# --- TAGI: „po co / przy jakiej okazji” — obok kategorii ---
+_tagi:
+  Dzieci:
+    - "\[millennium-debet\]"      # karta debetowa dziecka w Millennium
+    - "kieszonkowe|librus|szkoła|szkola"
+  Prezenty:
+    - "kwiaciarnia|prezent"
+  AI:
+    - "chatgpt|openai|claude|anthropic"
+  Wakacje_2026:
+    - "konzum|makarska|split|jadrolinija|dubrovnik"
+  Festiwal_2026:
+    - "festiwal"
+
+# --- WPŁYWY: grupy wpływów innych niż przelewy własne ---
+_wplywy:
+  Cashback_i_programy:
+    - "cashback|zwrot premii|nagroda"
+  Zwroty_zakupów:
+    - "zwrot|refund"

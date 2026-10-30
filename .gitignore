@@ -1,0 +1,15 @@
+# wynik budowania — publikowany tylko przez GitHub Actions (Releases)
+dist/
+__pycache__/
+*.pyc
+
+# NIGDY prawdziwe wyciągi ani ustawienia w repo (dozwolone tylko fikcyjne dane w demo/)
+*.csv
+*.pdf
+!demo/dane/**/*.csv
+wydatki-ustawienia*.json
+override.json
+tagi.json
+zwroty.json
+kategorie_wlasne.json
+.env

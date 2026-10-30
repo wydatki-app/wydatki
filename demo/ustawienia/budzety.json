@@ -1,0 +1,6 @@
+[
+ {"nazwa": "Jedzenie na mieście", "okres": "miesiac", "limit": 500, "kategorie": ["Jedzenie_na_mieście"], "bez_tagow": ["Dzieci"]},
+ {"nazwa": "Zakupy spożywcze", "okres": "miesiac", "limit": 2200, "kategorie": ["Jedzenie_dom"]},
+ {"nazwa": "Prezenty", "okres": "rok", "limit": 3000, "tagi": ["Prezenty"]},
+ {"nazwa": "Podróże i wydarzenia", "okres": "rok", "limit": 15000, "kategorie": ["Podróże"], "tagi": ["Festiwal_2026"]}
+]
