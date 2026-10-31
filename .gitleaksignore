@@ -1,3 +1,4 @@
 # Fałszywe alarmy gitleaks (przejrzane ręcznie). Format: commit:plik:reguła:linia
 # 31.10.2026: dashboard.js:17 to stała z nazwą klucza localStorage (zwroty), nie sekret
 c2d60671a02f0d7a956155a8979524497696672a:src/dashboard/dashboard.js:generic-api-key:17
+src/dashboard/dashboard.js:generic-api-key:17

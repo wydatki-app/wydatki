@@ -305,6 +305,28 @@ TEST = r"""
     await czekaj();
     ok("eksport: pakiet (najnowszy) nadpisuje pliki", W.magazyn.stan.tagi.k && W.magazyn.stan.tagi.k[0] === "Z_pakietu");
     ok("eksport: przycisk widoczny bez dostępu do folderu", !!document.getElementById("imp-eksport"));
+    // 4. wyczyszczenie danych z przeglądarki: tylko klucze aplikacji + baza IndexedDB, z ostrzeżeniem o braku kopii
+    ok("wyczyść: przycisk w pasku", !!document.getElementById("imp-wyczysc"));
+    localStorage.setItem("inna_aplikacja", "x"); localStorage.setItem("theme", "dark");
+    localStorage.setItem("wydatki_web_ustawienia_v1:Prywatny", JSON.stringify({ stan: {}, zmieniono: "2026-10-31T10:00:00Z", bezKopii: 3 }));
+    // atrapa IndexedDB: Firefox z --screenshot kończy po „load”, a prawdziwe IDB odpowiada makrozadaniami
+    const idbOrg = Object.getOwnPropertyDescriptor(window, "indexedDB") || Object.getOwnPropertyDescriptor(Window.prototype, "indexedDB");
+    let usunietaBaza = null;
+    Object.defineProperty(window, "indexedDB", { configurable: true, value: { deleteDatabase(n) {
+      usunietaBaza = n; const r = {}; queueMicrotask(() => r.onsuccess && r.onsuccess()); return r; } } });
+    const confirmOrg = window.confirm; let pytanie = "";
+    window.confirm = q => { pytanie = q; return false; };
+    ok("wyczyść: anulowanie niczego nie usuwa", (await W.app.wyczyscDane({ przeladuj: false })) === false
+       && localStorage.getItem("wydatki_web_ustawienia_v1:Prywatny"));
+    ok("wyczyść: ostrzeżenie o zmianach bez kopii", W.app.zmianyBezKopii() >= 3 && /zmian\S* bez kopii — przepadnie/.test(pytanie));
+    window.confirm = () => true;
+    ok("wyczyść: potwierdzone", await W.app.wyczyscDane({ przeladuj: false }));
+    window.confirm = confirmOrg;
+    ok("wyczyść: brak kluczy aplikacji", !Object.keys(localStorage).some(k => k.startsWith("wydatki")));
+    ok("wyczyść: cudze klucze i motyw zostają", localStorage.getItem("inna_aplikacja") === "x" && localStorage.getItem("theme") === "dark");
+    delete window.indexedDB; if (idbOrg && !("indexedDB" in window)) Object.defineProperty(window, "indexedDB", idbOrg);
+    ok("wyczyść: baza IndexedDB „wydatki” (zapamiętany folder) usuwana", usunietaBaza === "wydatki");
+    localStorage.removeItem("inna_aplikacja"); localStorage.removeItem("theme");
   } catch (e) { wyn.push(["wyjątek: " + e + " " + e.stack, false]); }
   if (/Chrome\//.test(navigator.userAgent))
     ok("chromium: showDirectoryPicker dostępne na file://", typeof window.showDirectoryPicker === "function");

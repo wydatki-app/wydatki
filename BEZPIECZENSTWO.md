@@ -30,6 +30,7 @@ Możesz też zbudować plik sam: `python3 -I build.py` → `dist/wydatki.html`.
 |---|---|
 | Wyciągi CSV | tylko Twój folder; aplikacja ich nie modyfikuje |
 | Kategorie, tagi, budżety | Chrome/Edge: pliki w `Wydatki/ustawienia/` (lub obok, jeśli tam były); Firefox/Safari: pamięć przeglądarki (localStorage) + plik kopii, gdy go zapiszesz |
+| Czyszczenie | Przycisk „wyczyść dane z przeglądarki” usuwa klucze aplikacji (`wydatki*`) z localStorage i bazę IndexedDB `wydatki` (zapamiętany folder). Cudze dane stron `file://` i motyw zostają, pliki w folderze nietknięte. Przy zmianach bez kopii pokazuje ostrzeżenie |
 | Ostatni folder (Chrome/Edge) | uchwyt w pamięci przeglądarki (IndexedDB); dostęp i tak wymaga Twojej zgody przy każdym otwarciu |
 
 ## Znane ograniczenia

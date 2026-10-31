@@ -46,6 +46,7 @@ Bank jest rozpoznawany po treści pliku — podfoldery służą tylko porządkow
 - Pliki są czytane **lokalnie** w przeglądarce — nigdzie nie są wysyłane.
 - Strona ma politykę CSP `connect-src 'none'`: **przeglądarka blokuje każde połączenie sieciowe** z tej strony.
 - Sprawdź sam: wyłącz internet (tryb samolotowy) i wczytaj pliki — działa tak samo.
+- Przeglądarka pamięta Twoje ustawienia (kategorie, tagi, budżety, zwroty) i ostatni folder, a nie całe wyciągi. Ustawienia zawierają jednak opisy poprawionych transakcji (data, opis, kwota). Na komputerze współdzielonym kliknij **„wyczyść dane z przeglądarki”** (pasek u góry albo ekran startowy). Pliki w folderze zostają, a jeśli masz zmiany bez kopii, aplikacja ostrzeże przed ich utratą.
 - Każde wydanie jest budowane przez GitHub Actions z kodu w tym repozytorium; obok pliku jest suma SHA-256.
 
 Szczegóły i jak to zweryfikować: [BEZPIECZENSTWO.md](BEZPIECZENSTWO.md).

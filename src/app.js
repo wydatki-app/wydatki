@@ -118,8 +118,8 @@
       req.onerror = () => reject(req.error);
       req.onsuccess = () => {
         const tx = req.result.transaction("uchwyty", tryb), r = fn(tx.objectStore("uchwyty"));
-        tx.oncomplete = () => resolve(r && r.result);
-        tx.onerror = () => reject(tx.error);
+        tx.oncomplete = () => { req.result.close(); resolve(r && r.result); };
+        tx.onerror = () => { req.result.close(); reject(tx.error); };
       };
     });
   }
@@ -222,7 +222,8 @@
       + "(np. <code>shared-text-2026-10-01 11:39:03.csv</code> z telefonu) — zmień nazwę pliku, np. na <code>revolut-2026-10.csv</code>.");
     return `<div class="imp-bar"><div><b>${profil === "demo" ? "DEMO — dane fikcyjne" : escH(profil)}</b> · ${escH(banki)}
       · reguły: ${raport.regulyZPliku ? "z folderu" : "domyślne"} · <span id="imp-zapis"></span>
-      · <button class="lnk" id="imp-zmien">zmień folder</button></div>
+      · <button class="lnk" id="imp-zmien">zmień folder</button>
+      · <button class="lnk" id="imp-wyczysc" title="Usuwa kopie ustawień i zapamiętany folder z tej przeglądarki">wyczyść dane z przeglądarki</button></div>
       ${profil === "demo" ? `<div class="imp-info">VeloBank: w demo brak przykładu — wyciągi Velo to pliki <b>PDF</b>
         („Historia rachunku” / „Historia karty” z bankowości internetowej). W swoim folderze wrzuć je do
         <code>dane/velo/</code> — aplikacja odczyta je sama, bez konwersji.</div>` : ""}
@@ -340,6 +341,7 @@
     const b = $("btn-przelicz");
     if (b) b.textContent = "↻ Wczytaj ponownie";
     $("imp-zmien").onclick = () => location.reload();
+    $("imp-wyczysc").onclick = () => wyczyscDane();
     stanZapisu();
     if (uchwyt && M.zrodlo === "przegladarka" && (await maZapis(uchwyt))) synchronizuj();
   }
@@ -349,6 +351,44 @@
     try { wpisy = await zUchwytu(uchwyt, uchwyt.name + "/"); }
     catch (e) { $("start-blad").textContent = "Nie udało się odczytać folderu: " + e.message; return; }
     return uruchom(uchwyt.name, wpisy, uchwyt);
+  }
+
+  // --- wyczyszczenie danych aplikacji z tej przeglądarki (np. komputer współdzielony) --------
+  // Tylko klucze z prefiksem "wydatki": w Chrome wszystkie strony file:// mają wspólny localStorage,
+  // więc nie ruszamy cudzych danych. Motyw ("theme") zostaje — to nie dane. Pliki w folderze nietknięte.
+  const PREFIKS_LS = "wydatki", KOPIA_LS = "wydatki_web_ustawienia_v1:";
+  function kluczeAplikacji() {
+    try { return Object.keys(localStorage).filter(k => k.startsWith(PREFIKS_LS)); } catch (e) { return []; }
+  }
+  // zmiany bez kopii we wszystkich profilach poza demo — przepadną przy czyszczeniu
+  function zmianyBezKopii() {
+    let n = 0;
+    for (const k of kluczeAplikacji()) {
+      if (!k.startsWith(KOPIA_LS) || k === KOPIA_LS + "demo") continue;
+      try { const v = JSON.parse(localStorage.getItem(k)); n += typeof v.bezKopii === "number" ? v.bezKopii : 1; } catch (e) { n += 1; }
+    }
+    return n;
+  }
+  function usunBaze() {
+    return new Promise(res => {
+      try {
+        const r = indexedDB.deleteDatabase("wydatki");
+        r.onsuccess = r.onerror = r.onblocked = () => res();
+      } catch (e) { res(); }
+    });
+  }
+  // opcje: {bezPytania, przeladuj} — dla testów; zwraca true, gdy wyczyszczono
+  async function wyczyscDane(opcje = {}) {
+    const n = zmianyBezKopii();
+    const pytanie = "Usunąć z tej przeglądarki wszystkie dane aplikacji Wydatki?\n"
+      + "(kopie ustawień: kategorie, tagi, budżety, zwroty; zapamiętany folder; widok)\n"
+      + (n ? `\nUWAGA: ${n} ${zmian(n)} bez kopii — przepadnie. Najpierw użyj „zapisz kopię ustawień”.\n` : "")
+      + "\nPliki w Twoim folderze (wyciągi, ustawienia) nie zostaną zmienione.";
+    if (!opcje.bezPytania && !confirm(pytanie)) return false;
+    for (const k of kluczeAplikacji()) { try { localStorage.removeItem(k); } catch (e) { /* brak dostępu */ } }
+    await usunBaze();
+    if (opcje.przeladuj !== false) location.reload();       // dane w pamięci karty też znikają
+    return true;
   }
 
   // „↻ Wczytaj ponownie”: z uchwytem (Chrome) folder czytany od nowa — widać nowe wyciągi;
@@ -404,10 +444,15 @@
       : "Ta przeglądarka (Firefox/Safari) nie zapisuje do folderu: zmiany (kategorie, tagi, budżety) są w jej pamięci. "
         + "Co jakiś czas kliknij „zapisz kopię ustawień” i przenieś plik wydatki-ustawienia.json do folderu ustawienia/ — "
         + "aplikacja przypomni. Zapis automatyczny do folderu: Chrome lub Edge.";
+    const bw = $("btn-wyczysc");
+    bw.onclick = () => wyczyscDane();
+    const box = $("wyczysc-box");
+    box.hidden = !kluczeAplikacji().length;
     if (location.hash === "#demo") return $("pokaz-demo").click();      // link bezpośrednio do demo
     if (FS_API) {
       const h = await ostatniFolder();
       if (h) {
+        box.hidden = false;
         const b = $("btn-ostatni");
         b.textContent = `Otwórz ostatni folder: ${h.name}`;
         b.hidden = false;
@@ -419,6 +464,6 @@
     }
   }
 
-  W.app = { przygotuj, uruchom, uruchomZUchwytu };
+  W.app = { przygotuj, uruchom, uruchomZUchwytu, wyczyscDane, zmianyBezKopii };
   if (typeof document !== "undefined" && document.getElementById("start")) start();
 })(globalThis.W = globalThis.W || {});
