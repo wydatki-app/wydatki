@@ -41,7 +41,7 @@ Bank jest rozpoznawany po treści pliku — podfoldery służą tylko porządkow
 | FIRE | koszt życia przeliczony na kapitał przy stopie wypłaty 4% |
 | Trendy | miesiąc do miesiąca, tempo wydatków w miesiącu, drill-down do transakcji |
 
-Jak działa cały proces (od wyciągu do celu FIRE, z kolejnością reguł i miejscem zapisu): [docs/jak-to-dziala.html](docs/jak-to-dziala.html).
+Jak działa cały proces: [animacja w 25 sekund](docs/animacja.html) i [opis krok po kroku](docs/jak-to-dziala.html) (od wyciągu do celu FIRE, kolejność reguł, miejsce zapisu). Obie strony są też na stronie demo.
 
 ## Bezpieczeństwo
 

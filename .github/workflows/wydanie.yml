@@ -25,7 +25,7 @@ jobs:
             --title "Wydatki ${GITHUB_REF_NAME}" --generate-notes \
             --notes "SHA-256: $(cut -d' ' -f1 dist/wydatki.html.sha256)"
       - name: Strona demo
-        run: mkdir -p strona && cp dist/wydatki.html strona/index.html && cp dist/wydatki.html strona/wydatki.html
+        run: mkdir -p strona && cp dist/wydatki.html strona/index.html && cp dist/wydatki.html strona/wydatki.html && cp docs/*.html strona/
       - uses: actions/upload-pages-artifact@v3
         with:
           path: strona
