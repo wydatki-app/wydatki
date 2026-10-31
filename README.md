@@ -55,7 +55,8 @@ Szczegóły i jak to zweryfikować: [BEZPIECZENSTWO.md](BEZPIECZENSTWO.md).
 
 | Przeglądarka | Zapis zmian (kategorie, tagi, budżety) |
 |---|---|
-| Chrome, Edge, Brave | prosto do folderu `Wydatki/` (przeglądarka zapyta o zgodę) |
+| Chrome, Edge | prosto do folderu `Wydatki/` (przeglądarka zapyta o zgodę) |
+| Brave | domyślnie jak Firefox (Brave wyłącza zapis do folderu); zapis do folderu po włączeniu `brave://flags/#file-system-access-api` |
 | Firefox, Safari | w pamięci przeglądarki; **„zapisz kopię ustawień”** tworzy plik do `ustawienia/` |
 
 ## Ograniczenia

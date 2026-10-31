@@ -13,6 +13,8 @@ import argparse, json, os, re, subprocess, sys, tempfile
 
 WEB = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CHROMIUM = os.environ.get("WYDATKI_CHROMIUM", os.path.expanduser("~/Downloads/chrome-linux/chrome"))
+# stały profil testowy (opcjonalnie): Brave headless wisi przy pierwszym starcie na pustym profilu
+CHROMIUM_PROFIL = os.environ.get("WYDATKI_CHROMIUM_PROFIL")
 ZNACZNIK = "@@TEST@@"
 
 XSS_CSV = ('"Numer rachunku/karty","Data transakcji","Data rozliczenia","Rodzaj transakcji","Na konto/Z konta",'
@@ -171,6 +173,14 @@ TEST = r"""
     ok("velo: prefiks posiadacza zdjęty", vtx[1].opis === "KIOSK RUCH");
     await W.app.uruchom("velo", [{sciezka: "v/dane/velo/velo.pdf", plik: vp}]); await czekaj();
     ok("velo: import pliku w aplikacji", document.getElementById("app").textContent.includes("VeloBank: 1 pl. / 3 tr."));
+    // 2a'. ReDoS z reguł: (a+)+$ na opisie „aaaa…!” zawiesiłby kartę — reguła ma być odrzucona z komunikatem
+    let t1 = performance.now();
+    await W.app.uruchom("redos", [
+      {sciezka: "r/dane/millennium/a.csv", tekst: XSS_CSV.split("\n")[0] + "\n" + '"X","2026-10-05","2026-10-05","","","","' + "a".repeat(30) + '!","-9.00","","0","PLN"\n'},
+      {sciezka: "r/ustawienia/kategorie.yaml", tekst: 'kategorie:\n  Zla:\n    - "(a+)+$"\n  Inne_nieskategoryzowane: []\n'}]);
+    await czekaj();
+    ok(`redos reguły: groźny wzorzec odrzucony, komunikat w pasku (${Math.round(performance.now() - t1)} ms)`,
+       document.getElementById("app").textContent.includes("powtarzana grupa z kwantyfikatorem") && performance.now() - t1 < 3000);
     // 2. XSS: opis transakcji, nazwa kategorii (yaml), tag z reguły, opis wpływu
     await W.app.uruchom("xss", [{sciezka: "x/dane/millennium/a.csv", tekst: XSS_CSV},
                                 {sciezka: "x/ustawienia/kategorie.yaml", tekst: XSS_YAML}]);
@@ -204,7 +214,7 @@ TEST = r"""
     ok("data: walidator", W.model.poprawnaData("2026-10-31") && !W.model.poprawnaData("2026-02-29") && W.model.poprawnaData("2028-02-29")
        && !W.model.poprawnaData("2026-13-01") && !W.model.poprawnaData(" 2026-10-31") && !W.model.poprawnaData(null));
     // 2a. ReDoS: długie pola z pliku nie mogą zawiesić parsera
-    let t1 = performance.now();
+    t1 = performance.now();
     const kwotaDl = W.model.parseAmount("1".repeat(200000) + "x");
     const pkoDl = W.banki.pkobp('"Data operacji","Data waluty","Typ transakcji","Kwota","Waluta","Saldo po transakcji","Opis transakcji"\r\n'
       + '"2026-10-29","2026-10-29","Płatność kartą","-1.00","PLN","+1.00","Lokalizacja: Adres: X' + " ".repeat(200000) + 'y"\r\n');
@@ -328,7 +338,11 @@ TEST = r"""
     ok("wyczyść: baza IndexedDB „wydatki” (zapamiętany folder) usuwana", usunietaBaza === "wydatki");
     localStorage.removeItem("inna_aplikacja"); localStorage.removeItem("theme");
   } catch (e) { wyn.push(["wyjątek: " + e + " " + e.stack, false]); }
-  if (/Chrome\//.test(navigator.userAgent))
+  // Brave domyślnie wyłącza File System Access API (flaga brave://flags/#file-system-access-api) —
+  // aplikacja działa wtedy jak w Firefoksie (kopia ustawień); tylko raportujemy stan
+  if (navigator.brave)
+    ok(`brave: zapis do folderu ${typeof window.showDirectoryPicker === "function" ? "włączony" : "wyłączony (domyślnie) → tryb kopii jak Firefox"}`, true);
+  else if (/Chrome\//.test(navigator.userAgent))
     ok("chromium: showDirectoryPicker dostępne na file://", typeof window.showDirectoryPicker === "function");
   wypisz(wyn);
 })();
@@ -344,7 +358,7 @@ def uruchom(przegladarka, strona, tmp):
         cmd = ["firefox", "--headless", "--no-remote", "--profile", prof,
                "--screenshot", os.path.join(tmp, "x.png"), "file://" + strona]
     else:
-        cmd = [CHROMIUM, "--headless=new", "--disable-gpu", "--no-first-run", "--user-data-dir=" + os.path.join(tmp, "profil-ch"),
+        cmd = [CHROMIUM, "--headless=new", "--disable-gpu", "--no-first-run", "--user-data-dir=" + (CHROMIUM_PROFIL or os.path.join(tmp, "profil-ch")),
                "--virtual-time-budget=10000", "--dump-dom", "file://" + strona]
     # ścieżka przeglądarki z WYDATKI_CHROMIUM ustawia sam uruchamiający testy; lista argumentów, bez powłoki
     return subprocess.run(cmd, capture_output=True, text=True, timeout=180).stdout  # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-tainted-env-args.dangerous-subprocess-use-tainted-env-args

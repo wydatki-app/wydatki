@@ -52,11 +52,44 @@
     return { wyklucz, bloki, tagi, wplywy };
   }
 
-  // Regex Pythona → JS. Różnice składni: (?P<n>…) → (?<n>…). Błędny wzorzec nie wywraca
-  // całości — trafia na listę błędów (pokazywaną użytkownikowi).
+  // ReDoS: wzorce z kategorie.yaml to dane z pliku. Odrzucamy za długie i takie, w których grupa
+  // z kwantyfikatorem sama jest powtarzana — (a+)+, (\w*)*, ((x+)y){2,}: wykładniczy backtracking.
+  // Skaner nie łapie wszystkiego (np. (a|a)*), dlatego dopasowanie idzie tylko po MAX_TEKST znakach.
+  const MAX_WZORZEC = 300, MAX_TEKST = 1000;
+  function zagniezdzony(p) {
+    const stos = [{ q: false }];
+    for (let i = 0; i < p.length; i++) {
+      const c = p[i];
+      if (c === "\\") { i++; continue; }
+      if (c === "[") {                                        // klasa znaków: kwantyfikatory w środku to literały
+        for (i++; i < p.length && p[i] !== "]"; i++) if (p[i] === "\\") i++;
+        continue;
+      }
+      if (c === "(") { stos.push({ q: false }); if (p[i + 1] === "?") i++; continue; }   // (?: (?= (?< — „?” to nie kwantyfikator
+      if (c === ")") {
+        const g = stos.length > 1 ? stos.pop() : { q: false };
+        const n = p[i + 1], kwant = n === "*" || n === "+" || (n === "{" && /^\{\d*,\d*\}/.test(p.slice(i + 1)));
+        if (kwant && g.q) return true;
+        stos[stos.length - 1].q = stos[stos.length - 1].q || g.q || kwant;
+        continue;
+      }
+      if (c === "*" || c === "+" || c === "?" || c === "{") stos[stos.length - 1].q = true;
+    }
+    return false;
+  }
+  function ryzykowny(p) {
+    if (p.length > MAX_WZORZEC) return `wzorzec za długi (> ${MAX_WZORZEC} znaków)`;
+    if (zagniezdzony(p)) return "powtarzana grupa z kwantyfikatorem, np. (a+)+ — może zawiesić aplikację";
+    return null;
+  }
+
+  // Regex Pythona → JS. Różnice składni: (?P<n>…) → (?<n>…). Błędny lub ryzykowny wzorzec nie
+  // wywraca całości — trafia na listę błędów (pokazywaną użytkownikowi).
   function kompiluj(wzorce, bledy) {
     const out = [];
     for (const p of wzorce) {
+      const r = ryzykowny(p);
+      if (r) { bledy.push(`${p.slice(0, 80)}: ${r}`); continue; }
       try { out.push(new RegExp(p.replace(/\(\?P</g, "(?<"), "i")); }
       catch (e) { bledy.push(`${p}: ${e.message}`); }
     }
@@ -77,7 +110,10 @@
     };
   }
 
-  const pasuje = (rxs, text) => rxs.some(rx => rx.test(text));
+  const pasuje = (rxs, text) => {
+    const t = text.length > MAX_TEKST ? text.slice(0, MAX_TEKST) : text;   // prawdziwe opisy: < 200 znaków
+    return rxs.some(rx => rx.test(t));
+  };
 
   function wykluczona(R, tx) {
     if (!tx.opis && !tx.odb) return true;          // bez opisu i odbiorcy = techniczny przepływ
@@ -117,5 +153,5 @@
     return { out, in: wpl };
   }
 
-  W.reguly = { wczytajYaml, zbuduj, wykluczona, kategoria, grupaWplywu, autoTagi, doDashboardu };
+  W.reguly = { wczytajYaml, zbuduj, ryzykowny, wykluczona, kategoria, grupaWplywu, autoTagi, doDashboardu };
 })(globalThis.W = globalThis.W || {});

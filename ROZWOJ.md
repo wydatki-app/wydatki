@@ -31,6 +31,7 @@ python3 -I testy/test_przegladarka.py --przegladarka chromium
 ```
 
 Chromium: domyślnie `~/Downloads/chrome-linux/chrome`, inna ścieżka przez `WYDATKI_CHROMIUM=…`.
+Brave (macOS): `WYDATKI_CHROMIUM="/Applications/Brave Browser.app/Contents/MacOS/Brave Browser"` + `WYDATKI_CHROMIUM_PROFIL=<katalog>` — Brave headless wisi przy pierwszym starcie na pustym profilu; profil trzeba raz „rozgrzać” (`--headless=new --virtual-time-budget=2000 --dump-dom` na dowolnej stronie).
 Demo bez klikania: `dist/wydatki.html#demo`.
 
 Opcjonalna kontrola danych osobowych przy budowaniu: plik `~/.config/wydatki/zakazane.txt`

@@ -806,7 +806,9 @@ function renderTagi(){
   document.getElementById('bulk-show').onclick=()=>{
     if(!bulk.od){ alert('Podaj datę początkową.'); return; }
     const od=bulk.od, dd=bulk.do||bulk.od;
-    let rx=null; if(bulk.f.trim()){ try{ rx=new RegExp(bulk.f.trim(),'i'); }catch(e){ alert('Błędny filtr (regex): '+e.message); return; } }
+    let rx=null; if(bulk.f.trim()){
+      const ryz=W.reguly&&W.reguly.ryzykowny(bulk.f.trim()); if(ryz){ alert('Filtr odrzucony: '+ryz); return; }   // ReDoS
+      try{ rx=new RegExp(bulk.f.trim(),'i'); }catch(e){ alert('Błędny filtr (regex): '+e.message); return; } }
     bulk.preview=DATA.out.filter(t=>t.d>=od && t.d<=dd && (!rx || rx.test(t.o))).sort((a,b)=>a.d<b.d?-1:1);
     bulk.checked=new Set(bulk.preview.map(t=>t.id));
     renderTagi();
