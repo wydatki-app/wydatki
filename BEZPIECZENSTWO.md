@@ -43,3 +43,4 @@ Możesz też zbudować plik sam: `python3 -I build.py` → `dist/wydatki.html`.
 
 Znalazłeś problem z bezpieczeństwem? Zgłoś go prywatnie przez
 [Security → Report a vulnerability](https://github.com/wydatki-app/wydatki/security/advisories/new), nie w publicznym Issue.
+Zakres, terminy odpowiedzi i zasady ujawniania: [SECURITY.md](SECURITY.md).
