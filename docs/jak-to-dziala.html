@@ -74,7 +74,8 @@ Krótka wersja: <a href="animacja.html" style="color:var(--acc)">animacja w 25 s
   <div class="step ty"><div class="num">1</div><div class="card">
     <div class="hd"><h3>Pobierasz wyciągi z banków</h3><span class="pill ty">Ty</span></div>
     <p>CSV z Millennium, mBank, PKO BP, Alior i Revolut; PDF „Historia rachunku/karty” z VeloBank.
-       Wrzucasz je do folderu <code>dane/&lt;bank&gt;/</code>. Nazwy plików i folderów nie mają znaczenia.</p>
+       Wrzucasz je do folderu <code>dane/</code> — najlepiej w podfolderach per bank (<code>dane/mbank/</code>, <code>dane/velo/</code>…),
+       ale to tylko porządek dla Ciebie: aplikacja bierze wyciągi z całego folderu i rozpoznaje bank po treści.</p>
   </div></div>
 
   <div class="step ty"><div class="num">2</div><div class="card">
@@ -186,7 +187,7 @@ Pliki w folderze zostają; jeśli masz zmiany bez kopii, aplikacja najpierw ostr
 <h2>5. Układ folderu</h2>
 <div class="tree">Wydatki/
 ├── wydatki.html            <span class="c">← aplikacja (jeden plik)</span>
-├── dane/
+├── dane/                   <span class="c">← wyciągi; podfoldery per bank opcjonalne (porządek)</span>
 │   ├── millennium/         <span class="c">← CSV „Historia transakcji”</span>
 │   ├── mbank/              <span class="c">← CSV „Elektroniczne zestawienie operacji”</span>
 │   ├── pkobp/              <span class="c">← CSV „Zestawienie operacji”</span>
@@ -202,7 +203,7 @@ Pliki w folderze zostają; jeśli masz zmiany bez kopii, aplikacja najpierw ostr
 
 <h2>6. Comiesięczna rutyna (ok. 10 minut)</h2>
 <ol class="routine">
-  <li>Pobierz wyciągi za miniony miesiąc i wrzuć do <code>dane/&lt;bank&gt;/</code> (stare pliki mogą zostać — duplikaty się nie liczą).</li>
+  <li>Pobierz wyciągi za miniony miesiąc i wrzuć do <code>dane/</code> (np. <code>dane/mbank/</code>) (stare pliki mogą zostać — duplikaty się nie liczą).</li>
   <li>Otwórz aplikację i folder; sprawdź pasek: liczba plików i transakcji na bank, ostrzeżenia.</li>
   <li>Zajrzyj do „Inne nieskategoryzowane” i popraw kategorie — przyjmij propozycję reguły, żeby za miesiąc działo się to samo.</li>
   <li>Oznacz „do zwrotu” i otaguj wyjazdy lub wydarzenia.</li>

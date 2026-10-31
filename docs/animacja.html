@@ -95,20 +95,20 @@ a{color:var(--acc)}
 <h1>Wydatki w 25 sekund</h1>
 <p class="lead">Od wyciągów z banku do celu FIRE — wszystko lokalnie w przeglądarce. Dane na animacji są fikcyjne.</p>
 
-<div class="scena-box" role="img" aria-label="Animacja: 1. wyciągi do folderu, 2. rozpoznanie banku, 3. kontrola transakcji i duplikatów, 4. kategorie z reguł i reguła z poprawki, 5. dashboard i cel FIRE">
+<div class="scena-box" role="img" aria-label="Animacja: 1. wyciągi do folderu dane (podfoldery per bank opcjonalne), 2. rozpoznanie banku, 3. kontrola transakcji i duplikatów, 4. kategorie z reguł i reguła z poprawki, 5. dashboard i cel FIRE">
 
   <!-- 1. pliki -->
   <section class="scena" style="--k:0">
     <div class="tyt">Krok 1 · Ty</div>
-    <div class="opis">Pobierasz wyciągi z banków i wrzucasz je do jednego folderu</div>
+    <div class="opis">Pobierasz wyciągi z banków i wrzucasz je do folderu <code>dane/</code></div>
     <div class="folder w" style="--k:0;--o:.3"><i></i> Wydatki/dane/</div>
-    <div class="pliki">
-      <div class="plik w" style="--k:0;--o:.8"><span class="ikona">CSV</span>historia_10.csv</div>
-      <div class="plik w" style="--k:0;--o:1.3"><span class="ikona">CSV</span>zestawienie.csv</div>
-      <div class="plik w" style="--k:0;--o:1.8"><span class="ikona pdf">PDF</span>historia_karty.pdf</div>
-      <div class="plik w" style="--k:0;--o:2.3"><span class="ikona">CSV</span>account-statement.csv</div>
+    <div class="pliki" style="grid-template-columns:1fr;max-width:560px">
+      <div class="plik w" style="--k:0;--o:.8"><span class="ikona">CSV</span>millennium/historia_10.csv</div>
+      <div class="plik w" style="--k:0;--o:1.3"><span class="ikona">CSV</span>pkobp/zestawienie.csv</div>
+      <div class="plik w" style="--k:0;--o:1.8"><span class="ikona pdf">PDF</span>velo/historia_karty.pdf</div>
+      <div class="plik w" style="--k:0;--o:2.3"><span class="ikona">CSV</span>revolut/account-statement.csv</div>
     </div>
-    <div class="pod">Bez konwersji, bez instalacji. Nazwy plików nie mają znaczenia.</div>
+    <div class="pod">Podfolder na każdy bank to tylko porządek dla Ciebie — możesz też wrzucić wszystko razem. Nazwy plików nie mają znaczenia, bez konwersji.</div>
   </section>
 
   <!-- 2. rozpoznanie -->
@@ -116,12 +116,12 @@ a{color:var(--acc)}
     <div class="tyt">Krok 2 · automatycznie</div>
     <div class="opis">Aplikacja rozpoznaje bank po treści pliku</div>
     <div class="pliki" style="grid-template-columns:1fr;max-width:560px">
-      <div class="plik"><span class="ikona">CSV</span>historia_10.csv<span class="bank w" style="--k:1;--o:.6">Millennium</span></div>
-      <div class="plik"><span class="ikona">CSV</span>zestawienie.csv<span class="bank w" style="--k:1;--o:1.2">PKO BP</span></div>
-      <div class="plik"><span class="ikona pdf">PDF</span>historia_karty.pdf<span class="bank w" style="--k:1;--o:1.8">VeloBank</span></div>
-      <div class="plik"><span class="ikona">CSV</span>account-statement.csv<span class="bank w" style="--k:1;--o:2.4">Revolut</span></div>
+      <div class="plik"><span class="ikona">CSV</span>millennium/historia_10.csv<span class="bank w" style="--k:1;--o:.6">Millennium</span></div>
+      <div class="plik"><span class="ikona">CSV</span>pkobp/zestawienie.csv<span class="bank w" style="--k:1;--o:1.2">PKO BP</span></div>
+      <div class="plik"><span class="ikona pdf">PDF</span>velo/historia_karty.pdf<span class="bank w" style="--k:1;--o:1.8">VeloBank</span></div>
+      <div class="plik"><span class="ikona">CSV</span>revolut/account-statement.csv<span class="bank w" style="--k:1;--o:2.4">Revolut</span></div>
     </div>
-    <div class="pod">Nagłówek kolumn albo tekst PDF · kodowanie UTF-8 i Windows-1250 · plik czytany lokalnie, nic nie wychodzi do sieci.</div>
+    <div class="pod">Po nagłówku kolumn albo tekście PDF, nie po nazwie pliku czy folderu — plik w złym podfolderze i tak trafi do właściwego banku. Czytany lokalnie, nic nie wychodzi do sieci.</div>
   </section>
 
   <!-- 3. kontrola -->
