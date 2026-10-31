@@ -1,4 +1,4 @@
-// Parsery wyciągów — port 1:1 z analiza_wydatkow.py (Millennium, VeloBank, Revolut ×2, Alior) + mBank (nowy, bez odpowiednika w Pythonie).
+// Parsery wyciągów — port 1:1 z analiza_wydatkow.py (Millennium, VeloBank, Revolut ×2, Alior) + mBank, PKO BP (nowe, bez odpowiednika w Pythonie).
 // Wejście: tekst pliku. Wyjście: tablica rekordów W.model.mk (+ opcjonalny klucz dedup "dk").
 (function (W) {
   "use strict";
@@ -214,9 +214,57 @@
     return out;
   }
 
+  // --- PKO BP (CSV ',', CP1250; "Zestawienie operacji") -------------------------------
+  // "Data operacji","Data waluty","Typ transakcji","Kwota","Waluta","Saldo po transakcji","Opis transakcji","",…
+  // Opis rozbity na kolumny bez nazw, każda "Klucz: wartość" (Tytuł, Lokalizacja, Nazwa odbiorcy…).
+  const PKO_NAGLOWEK = /^"?Data operacji"?,"?Data waluty"?,"?Typ transakcji"?,"?Kwota"?/;
+  const PKO_KARTA = /^(Płatność kartą|Zwrot płatności kartą|Wypłata z bankomatu|Wpłata we wpłatomacie)/i;
+
+  function pkoPola(r) {
+    const p = {};
+    for (const k of r.slice(6)) {
+      const m = /^\s*([^:]{2,40}):\s*(.*)$/.exec(k || "");
+      if (m) p[t(m[1])] = spacje(m[2]);
+    }
+    return p;
+  }
+
+  function pkobp(tekst) {
+    const rows = wiersze(tekst);
+    if (!rows.length || !PKO_NAGLOWEK.test(rows[0].join(",").replace(/^﻿/, ""))) return null;
+    const out = [];
+    for (const r of rows.slice(1)) {
+      if (r.length < 6) continue;
+      const typ = spacje(r[2]);
+      if (/^Blokada/i.test(typ) || /rozliczeniu/i.test(r[5] || "")) continue;   // autoryzacja — wróci jako operacja
+      if (t(r[4]) && t(r[4]).toUpperCase() !== "PLN") continue;
+      const kwota = parseAmount(r[3]);
+      if (kwota == null || kwota === 0) continue;
+      const p = pkoPola(r);
+      // karta: rzeczywista data zakupu w "Data wykonania operacji"
+      const wyk = /^(\d{4}-\d{2}-\d{2})/.exec(p["Data wykonania operacji"] || "");
+      const data = wyk ? wyk[1] : mbankData(r[0]) || mbankData(r[1]);
+      if (!data) continue;
+      let opis, odb;
+      const lok = /Adres:\s*(.*?)\s*(?:Miasto:\s*(.*?))?\s*(?:Kraj:.*)?$/.exec(p["Lokalizacja"] || "");
+      if (PKO_KARTA.test(typ) && lok) {
+        const miejsce = spacje(`${lok[1] || ""} ${lok[2] || ""}`);
+        opis = /^Płatność kartą/i.test(typ) ? miejsce : `${typ} ${miejsce}`;
+        odb = "";
+      } else {
+        // przelewy: tytuł + kontrahent; identyfikatory podatkowe (PESEL/NIP) celowo pomijane
+        const szczegoly = [p["Tytuł"], p["Symbol formularza"], p["Okres płatności"]].filter(Boolean).join(" ");
+        opis = spacje(`${typ} ${szczegoly}`);
+        odb = spacje(kwota < 0 ? p["Nazwa odbiorcy"] || "" : p["Nazwa nadawcy"] || "");
+      }
+      out.push(kwota < 0 ? mk(data, opis, odb, Math.abs(kwota), null) : mk(data, opis, odb, null, kwota));
+    }
+    return out;
+  }
+
   // --- rozpoznanie banku po treści (nie po folderze) ---------------------------
   // kolejność BANKI = kolejność scalania (jak w Pythonie: Millennium, Velo, Revolut, Alior)
-  const BANKI = ["millennium", "velo", "revolut", "alior", "mbank"];
+  const BANKI = ["millennium", "velo", "revolut", "alior", "mbank", "pkobp"];
 
   function rozpoznaj(tekst) {
     const poczatek = tekst.replace(/^﻿/, "").slice(0, 4000);
@@ -225,6 +273,7 @@
     if (/^Historia (rachunku|karty)/.test(poczatek) && /VeloBank S\.A\./.test(tekst)) return "velo";
     if (/Accounts (Summaries|Transaction Statements)/.test(poczatek)) return "revolut";
     if (/(^|\n)Data transakcji;/.test(poczatek)) return "alior";
+    if (PKO_NAGLOWEK.test(poczatek)) return "pkobp";
     if (/(^|[\r\n])#Data (operacji|ksi.gowania);[^\r\n]*#Kwota;/.test(poczatek)) return "mbank";
     return null;
   }
@@ -236,8 +285,9 @@
     if (bank === "alior") return alior(tekst);
     if (bank === "velo") return velo(tekst);
     if (bank === "mbank") return mbank(tekst);
+    if (bank === "pkobp") return pkobp(tekst);
     return null;
   }
 
-  W.banki = { BANKI, rozpoznaj, parsuj, millennium, revolutApp, revolutStatement, alior, mbank, velo };
+  W.banki = { BANKI, rozpoznaj, parsuj, millennium, revolutApp, revolutStatement, alior, mbank, velo, pkobp };
 })(globalThis.W = globalThis.W || {});

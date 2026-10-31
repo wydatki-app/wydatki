@@ -12,7 +12,7 @@
   const M = W.magazyn;
   const PLIKI_USTAWIEN = new Set(["kategorie.yaml", "kategorie.yml", "konfiguracja.json", ...Object.values(M.PLIKI)]);
   const PAKIET_RE = /^wydatki-ustawienia( ?\(\d+\))?\.json$/;    // pobrany kilka razy: "… (1).json"
-  const NAZWY_BANKOW = { millennium: "Millennium", velo: "VeloBank", revolut: "Revolut", alior: "Alior", mbank: "mBank" };
+  const NAZWY_BANKOW = { millennium: "Millennium", velo: "VeloBank", revolut: "Revolut", alior: "Alior", mbank: "mBank", pkobp: "PKO BP" };
   const $ = id => document.getElementById(id);
   const escH = s => String(s == null ? "" : s).replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
   const nazwaPliku = p => p.split("/").pop();

@@ -32,6 +32,14 @@ MBANK_CSV = ("mBank S.A. Bankowość Detaliczna;\r\n\r\n#Klient;\r\nJAN KOWALSKI
              "\r\n;;;;;;#Saldo końcowe;1 041,00;\r\n")
 MBANK_BAJTY = list(MBANK_CSV.encode("cp1250"))
 
+# PKO BP: fikcyjne „Zestawienie operacji” w CP1250 — blokada pominięta, PESEL nie trafia do opisu
+PKO_CSV = ('"Data operacji","Data waluty","Typ transakcji","Kwota","Waluta","Saldo po transakcji","Opis transakcji","","","","",""\r\n'
+           '"","2026-10-31","Blokada","-20.00","PLN","W rozliczeniu","Tytuł: P1  ","Lokalizacja: Adres: SKLEP X Miasto: GDAŃSK Kraj: POLSKA","","","",""\r\n'
+           '"2026-10-29","2026-10-27","Płatność kartą","-10.77","PLN","+100.00","Tytuł: 0001 ","Lokalizacja: Adres: APTEKA ŻÓŁTA Miasto: GDAŃSK Kraj: POLSKA","Data wykonania operacji: 2026-10-27","Oryginalna kwota operacji: 10.77","Numer karty: 4000******0000",""\r\n'
+           '"2026-10-19","2026-10-19","Przelew na konto","+1500.00","PLN","+110.77","Rachunek nadawcy: 00 0000","Nazwa nadawcy: FIRMA SP. Z O.O.","Adres nadawcy: Gdańsk","Tytuł: Wynagrodzenie","",""\r\n'
+           '"2026-10-13","2026-10-13","Przelew podatkowy","-151.00","PLN","+90.00","Rachunek odbiorcy: 00 0000","Nazwa odbiorcy: URZĄD SKARBOWY","Adres odbiorcy: CENTRUM","Nazwa i nr identyfikatora: PESEL, 99999999999","Symbol formularza: PPE","Okres płatności: 26M09"\r\n')
+PKO_BAJTY = list(PKO_CSV.encode("cp1250"))
+
 
 def velo_pdf():
     """Fikcyjny wyciąg VeloBank jak z wkhtmltopdf: font Type0/Identity-H + ToUnicode, treść FlateDecode,
@@ -110,6 +118,13 @@ TEST = r"""
     const mt = document.getElementById("app").textContent;
     ok("mbank: rozpoznany, 2 operacje", mt.includes("mBank: 1 pl. / 2 tr."));
     ok("mbank: polskie znaki po CP1250", mt.includes("ŻABKA") && !mt.includes("\ufffd"));
+    const pkoTx = W.banki.pkobp(new TextDecoder("windows-1250").decode(new Uint8Array(PKO_BAJTY)));
+    ok("pkobp: blokada pominięta, 3 operacje", pkoTx.length === 3);
+    ok("pkobp: karta — data wykonania, miejsce", pkoTx[0].data === "2026-10-27" && pkoTx[0].opis === "APTEKA ŻÓŁTA GDAŃSK" && pkoTx[0].obc === 10.77);
+    ok("pkobp: przelew — tytuł i nadawca", pkoTx[1].uzn === 1500 && pkoTx[1].odb === "FIRMA SP. Z O.O." && pkoTx[1].opis.includes("Wynagrodzenie"));
+    ok("pkobp: PESEL nie trafia do opisu", !/99999999999/.test(pkoTx[2].text) && pkoTx[2].opis === "Przelew podatkowy PPE 26M09");
+    await W.app.uruchom("pko", [{sciezka: "p/dane/pkobp/z.csv", plik: new File([new Uint8Array(PKO_BAJTY)], "z.csv")}]); await czekaj();
+    ok("pkobp: import pliku w aplikacji", document.getElementById("app").textContent.includes("PKO BP: 1 pl. / 3 tr."));
 
     // 1c. VeloBank PDF: czytnik W.pdf + parser; prefiks posiadacza zdjęty, spłata karty = wpływ wykluczany regułą
     const vp = new File([new Uint8Array(VELO_BAJTY)], "velo.pdf");
@@ -283,7 +298,7 @@ def main():
     # oczekiwany format = json.dump(indent=0) z serwer.py
     oczek = json.dumps({"a|b|1.0": ["Wakacje_2026", "-AI"], "x": ["T"]}, ensure_ascii=False, indent=0)
     test_js = (f"const XSS_CSV = {json.dumps(XSS_CSV)}; const XSS_YAML = {json.dumps(XSS_YAML)}; "
-               f"const OCZEK_TAGI = {json.dumps(oczek)}; const MBANK_BAJTY = {json.dumps(MBANK_BAJTY)}; const VELO_BAJTY = {json.dumps(list(velo_pdf()))};\n" + TEST)
+               f"const OCZEK_TAGI = {json.dumps(oczek)}; const MBANK_BAJTY = {json.dumps(MBANK_BAJTY)}; const VELO_BAJTY = {json.dumps(list(velo_pdf()))}; const PKO_BAJTY = {json.dumps(PKO_BAJTY)};\n" + TEST)
     zle = 0
     for p in lista:
         wyn = test(p, html, test_js)
