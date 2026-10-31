@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'">
+<title>Jak działa Wydatki</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--txt:#14181f;--mut:#5f6b7a;--line:#e3e7ec;--acc:#2a6fd6;--acc-soft:#e9f1fd;
+  --auto:#1f8a5b;--auto-soft:#e6f5ee;--ty:#b5651d;--ty-soft:#fbf0e4;--warn:#b42318;--warn-soft:#fdecea;--kod:#eef1f5}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#0f1216;--card:#171b21;--txt:#e7eaee;--mut:#9aa4b1;
+  --line:#2a313b;--acc:#5b9bf0;--acc-soft:#1a2a40;--auto:#4cc38a;--auto-soft:#16302a;--ty:#e3a35f;--ty-soft:#33261a;
+  --warn:#f07167;--warn-soft:#3a1d1b;--kod:#222831}}
+:root[data-theme=dark]{--bg:#0f1216;--card:#171b21;--txt:#e7eaee;--mut:#9aa4b1;--line:#2a313b;--acc:#5b9bf0;--acc-soft:#1a2a40;
+  --auto:#4cc38a;--auto-soft:#16302a;--ty:#e3a35f;--ty-soft:#33261a;--warn:#f07167;--warn-soft:#3a1d1b;--kod:#222831}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:980px;margin:0 auto;padding:28px 16px 64px}
+h1{font-size:30px;line-height:1.2;margin:0 0 6px}
+h2{font-size:21px;margin:44px 0 12px}
+h3{font-size:16px;margin:0 0 4px}
+p{margin:8px 0}
+.lead{color:var(--mut);font-size:17px;max-width:720px}
+code{background:var(--kod);border-radius:4px;padding:1px 5px;font-size:.88em;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+.legend{display:flex;gap:16px;flex-wrap:wrap;margin:14px 0 4px;font-size:14px;color:var(--mut)}
+.pill{display:inline-block;font-size:12px;font-weight:600;border-radius:999px;padding:2px 9px;white-space:nowrap}
+.pill.auto{background:var(--auto-soft);color:var(--auto)}
+.pill.ty{background:var(--ty-soft);color:var(--ty)}
+/* przebieg */
+.flow{display:grid;gap:0;margin-top:14px}
+.step{display:grid;grid-template-columns:44px 1fr;gap:14px;position:relative;padding-bottom:18px}
+.step:not(:last-child)::before{content:"";position:absolute;left:21px;top:44px;bottom:0;width:2px;background:var(--line)}
+.num{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-weight:700;background:var(--acc-soft);color:var(--acc);border:2px solid var(--acc)}
+.step.ty .num{background:var(--ty-soft);color:var(--ty);border-color:var(--ty)}
+.step .card{padding:12px 16px}
+.step .hd{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:2px}
+.step p{color:var(--mut);font-size:15px;margin:4px 0 0}
+.step ul{margin:6px 0 0;padding-left:18px;color:var(--mut);font-size:15px}
+/* kolejność decyzji */
+.cascade{display:grid;gap:8px;margin-top:10px}
+.lvl{display:grid;grid-template-columns:32px 1fr auto;gap:12px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 14px}
+.lvl b.i{font-size:18px;color:var(--acc)}
+.lvl small{color:var(--mut);font-size:14px;display:block}
+/* dwie kolumny */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.grid2 .card h3{margin-bottom:6px}
+.grid2 ol{margin:6px 0 0;padding-left:20px;font-size:15px}
+table{width:100%;border-collapse:collapse;font-size:15px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--mut);font-weight:600;font-size:13px}
+.tree{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:14px;line-height:1.6;white-space:pre;overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.tree .c{color:var(--mut)}
+.note{border-left:4px solid var(--warn);background:var(--warn-soft);border-radius:8px;padding:10px 14px;font-size:15px;margin-top:12px}
+.routine{counter-reset:r;list-style:none;padding:0;margin:10px 0 0;display:grid;gap:8px}
+.routine li{counter-increment:r;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 14px 10px 50px;position:relative}
+.routine li::before{content:counter(r);position:absolute;left:14px;top:9px;width:24px;height:24px;border-radius:50%;background:var(--acc);color:#fff;font-weight:700;font-size:13px;display:grid;place-items:center}
+.wrap{overflow-x:auto}
+footer{margin-top:48px;color:var(--mut);font-size:13px}
+@media(max-width:700px){h1{font-size:25px}.grid2{grid-template-columns:1fr}.lvl{grid-template-columns:26px 1fr}.lvl .pill{grid-column:2}}
+</style>
+</head>
+<body>
+<main>
+<h1>Jak działa Wydatki</h1>
+<p class="lead">Od pliku z banku do dashboardu i celu FIRE. Wszystko dzieje się w Twojej przeglądarce:
+pliki są czytane lokalnie, a strona ma zablokowane połączenia sieciowe (CSP <code>connect-src 'none'</code>).</p>
+<div class="legend"><span><span class="pill auto">automatycznie</span> robi aplikacja</span><span><span class="pill ty">Ty</span> decyzja lub czynność użytkownika</span></div>
+
+<h2>1. Przebieg krok po kroku</h2>
+<div class="flow">
+
+  <div class="step ty"><div class="num">1</div><div class="card">
+    <div class="hd"><h3>Pobierasz wyciągi z banków</h3><span class="pill ty">Ty</span></div>
+    <p>CSV z Millennium, mBank, PKO BP, Alior i Revolut; PDF „Historia rachunku/karty” z VeloBank.
+       Wrzucasz je do folderu <code>dane/&lt;bank&gt;/</code>. Nazwy plików i folderów nie mają znaczenia.</p>
+  </div></div>
+
+  <div class="step ty"><div class="num">2</div><div class="card">
+    <div class="hd"><h3>Otwierasz <code>wydatki.html</code> i wskazujesz folder</h3><span class="pill ty">Ty</span></div>
+    <p>Przycisk „Wybierz folder Wydatki” albo przeciągnięcie folderu. Foldery zaczynające się od <code>_</code> lub <code>.</code>
+       (np. <code>_archiwum</code>) są pomijane. Pliki powyżej 30 MB są pomijane z ostrzeżeniem.</p>
+  </div></div>
+
+  <div class="step"><div class="num">3</div><div class="card">
+    <div class="hd"><h3>Rozpoznanie banku</h3><span class="pill auto">automatycznie</span></div>
+    <p>Po treści, nie po nazwie: nagłówek kolumn CSV (np. <code>#Data operacji…#Kwota</code> = mBank) albo tekst PDF
+       („VeloBank S.A.”). Kodowanie UTF-8 lub Windows-1250 rozpoznawane samo. Nierozpoznany plik → ostrzeżenie w pasku.</p>
+  </div></div>
+
+  <div class="step"><div class="num">4</div><div class="card">
+    <div class="hd"><h3>Odczyt i kontrola transakcji</h3><span class="pill auto">automatycznie</span></div>
+    <ul>
+      <li>Data, opis, kontrahent, kwota; przy płatności kartą — rzeczywista data zakupu.</li>
+      <li>Blokady („w rozliczeniu”) pominięte — wrócą jako właściwa operacja.</li>
+      <li>Wiersz z błędną datą odrzucony z ostrzeżeniem w pasku; bez poprawnej kwoty — pominięty (ochrona przed zepsutym lub podrzuconym plikiem).</li>
+      <li>PDF: limity rozmiaru i złożoności — złośliwy plik jest pomijany, karta się nie zawiesza.</li>
+    </ul>
+  </div></div>
+
+  <div class="step"><div class="num">5</div><div class="card">
+    <div class="hd"><h3>Scalanie i usuwanie duplikatów</h3><span class="pill auto">automatycznie</span></div>
+    <p>Eksporty z nakładającymi się okresami nie dublują wydatków: ta sama data, opis i kwota liczą się raz.</p>
+  </div></div>
+
+  <div class="step"><div class="num">6</div><div class="card">
+    <div class="hd"><h3>Wykluczenia</h3><span class="pill auto">automatycznie</span></div>
+    <p>Przelewy własne, spłaty kart, zasilenia między kontami i wzorce z sekcji <code>_wyklucz</code> nie są ani wydatkiem,
+       ani wpływem — inaczej te same pieniądze liczyłyby się dwa razy.</p>
+  </div></div>
+
+  <div class="step"><div class="num">7</div><div class="card">
+    <div class="hd"><h3>Kategoria, tagi, grupa wpływu</h3><span class="pill auto">automatycznie</span></div>
+    <p>Według reguł — kolejność decyzji w sekcji 2 poniżej. Tagi z reguł (np. „Dzieci” dla karty dziecka),
+       wpływy dostają grupę (cashback, zwroty, …).</p>
+  </div></div>
+
+  <div class="step ty"><div class="num">8</div><div class="card">
+    <div class="hd"><h3>Przeglądasz i poprawiasz</h3><span class="pill ty">Ty</span></div>
+    <ul>
+      <li>Zmiana kategorii przy transakcji → aplikacja proponuje <b>regułę</b> dla podobnych (i przyszłych) transakcji.</li>
+      <li>Tagi ręczne i hurtowe (zakres dat, np. „Wakacje 2026”); wyłączenie tagu z reguły dla jednej transakcji.</li>
+      <li>„Do zwrotu” — wydatek, za który czekasz na zwrot, znika z sum.</li>
+      <li>Budżety miesięczne i roczne; cel FIRE w zakładce Ustawienia.</li>
+    </ul>
+  </div></div>
+
+  <div class="step"><div class="num">9</div><div class="card">
+    <div class="hd"><h3>Warstwy kosztu życia i FIRE</h3><span class="pill auto">automatycznie</span></div>
+    <p>Każdy wydatek trafia do jednej warstwy (sekcja 3). Bieżący koszt życia × 12 ÷ stopa wypłaty = kapitał potrzebny do FIRE.</p>
+  </div></div>
+
+  <div class="step"><div class="num">10</div><div class="card">
+    <div class="hd"><h3>Zapis Twoich zmian</h3><span class="pill auto">automatycznie</span></div>
+    <p>Zależnie od przeglądarki — prosto do folderu albo w przeglądarce z przypomnieniem o kopii (sekcja 4).
+       Wyciągów aplikacja nigdy nie zmienia.</p>
+  </div></div>
+</div>
+
+<h2>2. Jak transakcja dostaje kategorię</h2>
+<p>Sprawdzane od góry. Pierwsze dopasowanie wygrywa, niżej już się nie schodzi.</p>
+<div class="cascade">
+  <div class="lvl"><b class="i">0</b><div>Wykluczenie <small>przelew własny, spłata karty, sekcja <code>_wyklucz</code> → transakcja poza wyliczeniami</small></div><span class="pill auto">reguła</span></div>
+  <div class="lvl"><b class="i">1</b><div>Ręczna zmiana przy tej transakcji <small>zapisana w <code>override.json</code>; dotyczy tylko tej jednej transakcji</small></div><span class="pill ty">Ty</span></div>
+  <div class="lvl"><b class="i">2</b><div>Twoje reguły z aplikacji <small><code>reguly_wlasne.json</code> — fragment opisu → kategoria, np. „stokrotka” → Jedzenie dom</small></div><span class="pill ty">Ty</span></div>
+  <div class="lvl"><b class="i">3</b><div>Reguły z pliku <small><code>kategorie.yaml</code> z folderu albo wbudowane domyślne; pierwsza pasująca kategoria w kolejności pliku</small></div><span class="pill auto">reguła</span></div>
+  <div class="lvl"><b class="i">4</b><div>Brak dopasowania <small>„Inne nieskategoryzowane” — tu warto zajrzeć po każdym imporcie</small></div><span class="pill auto">domyślnie</span></div>
+</div>
+<p style="color:var(--mut);font-size:15px">Reguły dopasowują opis i kontrahenta, bez względu na wielkość liter. W aplikacji wpisujesz zwykły tekst;
+pełna składnia wyrażeń regularnych jest dostępna w <code>kategorie.yaml</code> (przycisk „pobierz kategorie.yaml do edycji”).
+Wzorce, które mogłyby zawiesić aplikację, są odrzucane z komunikatem.</p>
+
+<h2>3. Warstwy kosztu życia (karta FIRE)</h2>
+<p>Każdy wydatek trafia do pierwszej pasującej warstwy. Progi i tagi ustawiasz w zakładce Ustawienia (<code>konfiguracja.json</code>).</p>
+<div class="wrap"><table class="card" style="padding:0">
+  <tr><th>Kolejność</th><th>Warunek</th><th>Warstwa</th></tr>
+  <tr><td>1</td><td>kategoria Podróże</td><td>podróże</td></tr>
+  <tr><td>2</td><td>tag dzieci (domyślnie „Dzieci”)</td><td>dzieci</td></tr>
+  <tr><td>3</td><td>kategoria Rodzina i prezenty</td><td>rodzina</td></tr>
+  <tr><td>4</td><td>tag wydarzeń (np. festiwal)</td><td>wydarzenia</td></tr>
+  <tr><td>5</td><td>kwota ≥ próg jednorazowych (domyślnie 300 zł)</td><td>jednorazowe</td></tr>
+  <tr><td>6</td><td>pozostałe</td><td><b>bieżący koszt życia</b> → podstawa celu FIRE</td></tr>
+</table></div>
+<p style="color:var(--mut);font-size:15px">Średnie liczone są z pełnych miesięcy (domyślnie 4 ostatnie); bieżący miesiąc pokazywany jest z prognozą.</p>
+
+<h2>4. Gdzie zapisują się Twoje zmiany</h2>
+<div class="grid2">
+  <div class="card"><h3>Chrome, Edge</h3>
+    <ol>
+      <li>Wybierasz folder przyciskiem — przeglądarka raz pyta o zgodę na zapis.</li>
+      <li>Każda zmiana od razu trafia do pliku w <code>ustawienia/</code> (zapis atomowy).</li>
+      <li>Następnym razem: „Otwórz ostatni folder”.</li>
+    </ol></div>
+  <div class="card"><h3>Firefox, Safari, Brave</h3>
+    <ol>
+      <li>Zmiany są w pamięci przeglądarki; pasek liczy zmiany bez kopii.</li>
+      <li>Po 10 zmianach lub 3 dniach pasek robi się pilny.</li>
+      <li>„Zapisz kopię ustawień” → plik <code>wydatki-ustawienia.json</code> przenosisz do <code>ustawienia/</code>.</li>
+      <li>Przy wczytaniu wygrywa nowsza wersja: kopia w przeglądarce albo pliki.</li>
+    </ol></div>
+</div>
+<div class="note"><b>Komputer współdzielony:</b> przycisk „wyczyść dane z przeglądarki” usuwa ustawienia aplikacji i zapamiętany folder.
+Pliki w folderze zostają; jeśli masz zmiany bez kopii, aplikacja najpierw ostrzeże.</div>
+
+<h2>5. Układ folderu</h2>
+<div class="tree">Wydatki/
+├── wydatki.html            <span class="c">← aplikacja (jeden plik)</span>
+├── dane/
+│   ├── millennium/         <span class="c">← CSV „Historia transakcji”</span>
+│   ├── mbank/              <span class="c">← CSV „Elektroniczne zestawienie operacji”</span>
+│   ├── pkobp/              <span class="c">← CSV „Zestawienie operacji”</span>
+│   ├── alior/  revolut/    <span class="c">← CSV</span>
+│   └── velo/               <span class="c">← PDF „Historia rachunku” / „Historia karty”</span>
+└── ustawienia/             <span class="c">← tworzone i uzupełniane przez aplikację</span>
+    ├── kategorie.yaml      <span class="c">opcjonalnie — reguły z pliku (bez niego: wbudowane)</span>
+    ├── reguly_wlasne.json  <span class="c">reguły dodane w aplikacji</span>
+    ├── konfiguracja.json   <span class="c">cel FIRE, progi, tagi dzieci i wydarzeń</span>
+    ├── override.json       <span class="c">ręczne kategorie pojedynczych transakcji</span>
+    ├── tagi.json  zwroty.json  budzety.json  kategorie_wlasne.json</div>
+<p style="color:var(--mut);font-size:15px">Na start wystarczy sam <code>wydatki.html</code> i wyciągi — wszystkie pliki ustawień są opcjonalne.</p>
+
+<h2>6. Comiesięczna rutyna (ok. 10 minut)</h2>
+<ol class="routine">
+  <li>Pobierz wyciągi za miniony miesiąc i wrzuć do <code>dane/&lt;bank&gt;/</code> (stare pliki mogą zostać — duplikaty się nie liczą).</li>
+  <li>Otwórz aplikację i folder; sprawdź pasek: liczba plików i transakcji na bank, ostrzeżenia.</li>
+  <li>Zajrzyj do „Inne nieskategoryzowane” i popraw kategorie — przyjmij propozycję reguły, żeby za miesiąc działo się to samo.</li>
+  <li>Oznacz „do zwrotu” i otaguj wyjazdy lub wydarzenia.</li>
+  <li>Sprawdź budżety i kartę FIRE.</li>
+  <li>Firefox, Safari, Brave: „zapisz kopię ustawień” i przenieś plik do <code>ustawienia/</code>.</li>
+</ol>
+
+<footer>Wydatki — opis działania zgodny z wersją 0.2.0. Bez sieci, bez kont, bez instalacji.</footer>
+</main>
+</body>
+</html>
