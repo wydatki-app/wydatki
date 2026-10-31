@@ -19,3 +19,5 @@ body{background:var(--bg);color:var(--txt)}
 .imp-kopia,.imp-info{margin-top:4px;word-break:break-word}
 .imp-kopia.pilne{color:var(--warn);border-left:3px solid var(--warn);padding-left:8px}
 .lnk{background:none;border:0;padding:0;color:var(--acc);text-decoration:underline;cursor:pointer;font:inherit}
+.form-ust{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px;margin:10px 0 12px}
+.form-ust label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mut)}

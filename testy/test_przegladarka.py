@@ -315,6 +315,54 @@ TEST = r"""
     await czekaj();
     ok("eksport: pakiet (najnowszy) nadpisuje pliki", W.magazyn.stan.tagi.k && W.magazyn.stan.tagi.k[0] === "Z_pakietu");
     ok("eksport: przycisk widoczny bez dostępu do folderu", !!document.getElementById("imp-eksport"));
+    // 3b. ustawienia FIRE i reguły własne (dla innych użytkowników: bez ręcznej edycji plików)
+    r = await W.api("/api/konfiguracja", {method: "POST", body: JSON.stringify({fire_swr: 5})});
+    ok("konfiguracja: zła stopa wypłaty odrzucona (400)", r.status === 400);
+    r = await W.api("/api/reguly-wlasne", {method: "POST", body: JSON.stringify([{wzorzec: "(a+)+", kategoria: "X"}])});
+    ok("reguły: wzorzec ReDoS odrzucony (400)", r.status === 400);
+    r = await W.api("/api/reguly-wlasne", {method: "POST", body: JSON.stringify([{wzorzec: "x", kategoria: "<b>"}])});
+    ok("reguły: zła nazwa kategorii odrzucona (400)", r.status === 400);
+    const CSV_REG = XSS_CSV.split("\n")[0] + "\n" + [1, 2, 3].map(i =>
+      `"X","2026-10-0${i}","2026-10-0${i}","","","","STOKROTKA ${i}00 WARSZAWA","-1${i}.00","","0","PLN"`).join("\n") + "\n";
+    const YAML_REG = 'kategorie:\n  Jedzenie:\n    - "biedronka"\n  Inne_nieskategoryzowane: []\n';
+    let dane = await W.app.przygotuj("reg1", [{sciezka: "g/dane/a.csv", tekst: CSV_REG}, {sciezka: "g/kategorie.yaml", tekst: YAML_REG},
+      {sciezka: "g/reguly_wlasne.json", tekst: '[{"wzorzec":"stokrotka","kategoria":"Jedzenie"}]'},
+      {sciezka: "g/konfiguracja.json", tekst: '{"fire_cel_mc":7000,"fire_swr":5,"tagi_dzieci":["Ola"]}'}]);
+    ok("reguły z pliku reguly_wlasne.json działają", dane.DATA.out.length === 3 && dane.DATA.out.every(t => t.c === "Jedzenie"));
+    ok("konfiguracja z pliku: błędne pole pominięte, reszta zostaje",
+       dane.DATA.sumcfg.fire_mc === 7000 && dane.DATA.sumcfg.swr === 0.04 && dane.DATA.sumcfg.syn[0] === "Ola");
+    localStorage.setItem("wydatki_web_ustawienia_v1:reg2", JSON.stringify({stan: {tagi: {}}, zmieniono: "2099-01-01T00:00:00Z", bezKopii: 1}));
+    dane = await W.app.przygotuj("reg2", [{sciezka: "h/dane/a.csv", tekst: CSV_REG}, {sciezka: "h/konfiguracja.json", tekst: '{"fire_cel_mc":6500}'}]);
+    ok("stara kopia bez konfiguracji nie kasuje konfiguracja.json", dane.DATA.sumcfg.fire_mc === 6500);
+    // UI: zmiana kategorii jednej transakcji → propozycja reguły dla podobnych → wszystkie 3 przeniesione
+    await W.app.uruchom("reg3", [{sciezka: "k/dane/a.csv", tekst: CSV_REG}, {sciezka: "k/kategorie.yaml", tekst: YAML_REG}]);
+    await czekaj();
+    document.querySelector('#app [data-v="transakcje"]')?.click(); await czekaj();
+    const promptOrg = window.prompt, alertOrg2 = window.alert, confirmOrg2 = window.confirm; let pyt = "";
+    window.prompt = (q, d) => { pyt = q; return d; }; window.alert = () => {}; window.confirm = () => true;
+    const sel = document.querySelector("#app .catsel");
+    if (sel) { sel.value = "Jedzenie"; sel.dispatchEvent(new Event("change")); }
+    await czekaj(); await czekaj();
+    ok("propozycja reguły: pytanie z liczbą podobnych", /Podobny opis ma jeszcze 2 transakcji/.test(pyt));
+    ok("propozycja reguły: zapisana jako tekst → wzorzec", JSON.stringify(W.magazyn.stan.reguly) === '[{"wzorzec":"stokrotka","kategoria":"Jedzenie"}]');
+    dane = await W.app.przygotuj("reg3", [{sciezka: "k/dane/a.csv", tekst: CSV_REG}, {sciezka: "k/kategorie.yaml", tekst: YAML_REG}]);
+    ok("propozycja reguły: po przeliczeniu wszystkie 3 w kategorii", dane.DATA.out.every(t => t.c === "Jedzenie"));
+    // UI: formularz FIRE i pobranie reguł
+    await W.app.uruchom("reg3", [{sciezka: "k/dane/a.csv", tekst: CSV_REG}, {sciezka: "k/kategorie.yaml", tekst: YAML_REG}]);
+    await czekaj();
+    const uc = document.getElementById("u-cel");
+    if (uc) { uc.value = "7500"; document.getElementById("u-swr").value = "3.5"; document.getElementById("u-zapisz").click(); }
+    await czekaj();
+    ok("formularz FIRE: zapisany cel i stopa", W.magazyn.stan.konfiguracja.fire_cel_mc === 7500 && W.magazyn.stan.konfiguracja.fire_swr === 0.035);
+    const pobOrg = W.pobierz; let pob = null; W.pobierz = (n, t) => { pob = [n, t]; };
+    document.getElementById("reg-pobierz")?.click();
+    W.pobierz = pobOrg;
+    ok("pobierz kategorie.yaml: nazwa, nagłówek, treść", pob && pob[0] === "kategorie.yaml" && pob[1].startsWith("# Reguły kategorii") && pob[1].includes('"biedronka"'));
+    const rw = document.getElementById("reg-wz");
+    if (rw) { rw.value = "c++ (sklep)"; document.getElementById("reg-kat").value = "Jedzenie"; await document.getElementById("reg-add").onclick(); }
+    await czekaj();
+    ok("ręczna reguła: znaki specjalne jako dosłowny tekst", W.magazyn.stan.reguly.some(r => r.wzorzec === "c\\+\\+\\s+\\(sklep\\)"));
+    window.prompt = promptOrg; window.alert = alertOrg2; window.confirm = confirmOrg2;
     // 4. wyczyszczenie danych z przeglądarki: tylko klucze aplikacji + baza IndexedDB, z ostrzeżeniem o braku kopii
     ok("wyczyść: przycisk w pasku", !!document.getElementById("imp-wyczysc"));
     localStorage.setItem("inna_aplikacja", "x"); localStorage.setItem("theme", "dark");

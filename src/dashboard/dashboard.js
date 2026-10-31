@@ -109,6 +109,45 @@ async function usunKategorie(nazwa){
   renderAll();
 }
 
+// --- reguły własne (reguly_wlasne.json): fragment opisu → kategoria, pierwszeństwo przed kategorie.yaml ---
+// Użytkownik wpisuje zwykły tekst; zamiana na wzorzec ze znakami specjalnymi escapowanymi (bez regex „przez przypadek”).
+let reguly=[], konf={};
+const RG=()=>globalThis.W.reguly;
+const naWzorzec=s=>String(s||'').trim().toLowerCase().replace(/[.*+?^${}()|[\]\\]/g,'\\$&').replace(/\s+/g,'\\s+');
+const odWzorca=w=>String(w||'').replace(/\\s\+/g,' ').replace(/\\(.)/g,'$1');
+const testerWzorca=wz=>{ try{ const rx=new RegExp(wz.replace(/\(\?P</g,'(?<'),'i'); return t=>rx.test(t.o); }catch(e){ return null; } };
+async function loadReguly(){ try{ const r=await wApi('/api/reguly-wlasne'); if(r.ok) reguly=await r.json(); }catch(e){ console.warn(e.message); } }
+async function loadKonf(){ try{ const r=await wApi('/api/konfiguracja'); if(r.ok) konf=await r.json(); }catch(e){ console.warn(e.message); } }
+async function zapiszUst(url, dane, co){
+  const r=await wApi(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(dane)});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok||!j.ok){ alert(`Nie zapisano (${co}): `+(j.error||('HTTP '+r.status))); return false; }
+  return true;
+}
+// kategorie z reguł liczone są przy imporcie → po zmianie reguł/ustawień przeliczenie całości
+async function dodajRegule(tekst, kat){
+  const wz=naWzorzec(tekst);
+  if(!wz||!kat) return false;
+  if(reguly.some(r=>r.wzorzec===wz&&r.kategoria===kat)) return true;
+  if(!(await zapiszUst('/api/reguly-wlasne',[...reguly,{wzorzec:wz,kategoria:kat}],'reguła'))) return false;
+  wPrzeladuj(); return true;
+}
+async function usunRegule(i){
+  const r=reguly[i]; if(!r||!confirm(`Usunąć regułę „${odWzorca(r.wzorzec)}” → ${r.kategoria.replace(/_/g,' ')}?`)) return;
+  if(await zapiszUst('/api/reguly-wlasne',reguly.filter((_,j)=>j!==i),'reguła')) wPrzeladuj();
+}
+// po ręcznej zmianie kategorii: czy przenieść też podobne (i przyszłe) transakcje — tylko gdy jest co przenieść
+async function proponujRegule(id, kat){
+  const t=DATA.out.find(x=>x.id===id); if(!t||!RG()) return;
+  const wz=RG().sugestia(t.o), test=wz&&testerWzorca(wz); if(!test) return;
+  const inne=DATA.out.filter(x=>x.id!==id && effCat(x)!==kat && test(x));
+  if(!inne.length) return;
+  const odp=prompt(`Podobny opis ma jeszcze ${inne.length} transakcji (np. „${inne[0].o.slice(0,40)}”).\n`
+    +`Przypisać je — i przyszłe — automatycznie do „${kat.replace(/_/g,' ')}”?\n\n`
+    +`Fragment opisu, po którym rozpoznać (możesz poprawić). Anuluj = zmiana tylko tej jednej transakcji:`, odWzorca(wz));
+  if(odp&&odp.trim()) await dodajRegule(odp, kat);
+}
+
 // --- tagi (np. wyjazd) — wiele tagów na transakcję, przekrojowo przez kategorie i miesiące ---
 // tryb serwera: tagi.json ({ID: [tag, ...]}); tryb pliku: localStorage
 const LS_TAGI = 'wydatki_tagi_v1';
@@ -554,9 +593,12 @@ function bindTxRows(root){
         const nazwa=await dodajKategorie(prompt('Nazwa nowej kategorii:',''));
         if(!nazwa){ renderAll(); return; }      // anulowane — cofnij wybór w selekcie
         await setCat(id, nazwa, sel.dataset.orig);
+        await proponujRegule(id, nazwa);
         return;
       }
-      setCat(id, sel.value, sel.dataset.orig);
+      const kat=sel.value, orig=sel.dataset.orig;
+      await setCat(id, kat, orig);
+      if(kat && kat!==orig) await proponujRegule(id, kat);
     };
   });
 }
@@ -730,6 +772,66 @@ function renderKategorie(){
   K.querySelectorAll('.chip .x').forEach(el=>el.onclick=()=>usunKategorie(dec(el.dataset.del)));
 }
 
+// REGUŁY — własne (z aplikacji) + pobranie kategorie.yaml do edycji
+const NAGL_YAML='# Reguły kategorii — aplikacja Wydatki\n'
+  +'# Zapisz jako ustawienia/kategorie.yaml w swoim folderze i wczytaj folder ponownie.\n'
+  +'# Kategoria: lista wzorców (fragment opisu, wielkość liter bez znaczenia, składnia wyrażeń regularnych).\n'
+  +'# Pierwsza pasująca kategoria wygrywa — kolejność ma znaczenie. _wyklucz: pomijane, _tagi: tagi automatyczne,\n'
+  +'# _wplywy: grupy wpływów. Reguły dodane w aplikacji są w reguly_wlasne.json i mają pierwszeństwo.\n\n';
+function renderReguly(){
+  const E=document.getElementById('reguly'); if(!E) return;
+  const wiersze=reguly.map((r,i)=>{ const test=testerWzorca(r.wzorzec), n=test?DATA.out.filter(test).length:0;
+    return `<tr><td><code>${escH(odWzorca(r.wzorzec))}</code></td><td><span class="dot" style="display:inline-block;background:${catColor(r.kategoria)}"></span> ${escH(r.kategoria.replace(/_/g,' '))}</td>
+      <td class="num">${n}</td><td><span class="tagadd reg-del" data-i="${i}" title="Usuń regułę">🗑</span></td></tr>`; }).join('');
+  E.innerHTML=`<div class="muted" style="font-size:12px">Reguła = fragment opisu → kategoria. Twoje reguły mają pierwszeństwo przed regułami z pliku.
+      Najprościej: zmień kategorię przy transakcji — aplikacja zaproponuje regułę dla podobnych.</div>
+    ${reguly.length?`<div class="scroll"><table><tr><th>Fragment opisu</th><th>Kategoria</th><th class="num">Transakcji</th><th></th></tr>${wiersze}</table></div>`
+      :'<div class="muted" style="font-size:12px;margin:8px 0">Brak własnych reguł.</div>'}
+    <div class="addcat" style="margin-top:8px">
+      <input id="reg-wz" placeholder="fragment opisu, np. stokrotka" maxlength="200" style="min-width:180px">
+      <select id="reg-kat" class="catsel" style="max-width:220px">${catList().map(c=>`<option value="${escH(c)}">${escH(c.replace(/_/g,' '))}</option>`).join('')}</select>
+      <button class="tab" id="reg-add">➕ Dodaj regułę</button></div>
+    <div class="muted" style="font-size:12px;margin-top:12px">Reguły z pliku: ${DATA.reguly_z_pliku?'<code>kategorie.yaml</code> z Twojego folderu':'wbudowane (domyślne)'}
+      · <button class="lnk" id="reg-pobierz">pobierz kategorie.yaml do edycji</button></div>`;
+  E.querySelectorAll('.reg-del').forEach(el=>el.onclick=()=>usunRegule(+el.dataset.i));
+  document.getElementById('reg-add').onclick=async()=>{
+    const tekst=document.getElementById('reg-wz').value, kat=document.getElementById('reg-kat').value;
+    const test=testerWzorca(naWzorzec(tekst));
+    if(!tekst.trim()||!test){ alert('Podaj fragment opisu.'); return; }
+    const n=DATA.out.filter(test).length;
+    if(!confirm(`Reguła „${tekst.trim()}” → ${kat.replace(/_/g,' ')} obejmie teraz ${n} transakcji (i przyszłe). Dodać?`)) return;
+    await dodajRegule(tekst, kat);
+  };
+  document.getElementById('reg-pobierz').onclick=()=>{
+    const y=DATA.reguly_yaml||'';
+    globalThis.W.pobierz('kategorie.yaml', y.startsWith(NAGL_YAML.split('\n')[0])?y:NAGL_YAML+y);
+  };
+}
+
+// USTAWIENIA FIRE — konfiguracja.json (puste pole = wartość domyślna)
+function renderUstawienia(){
+  const E=document.getElementById('ustawienia-fire'); if(!E) return;
+  const v=(k,d)=>konf[k]!==undefined?konf[k]:d;
+  E.innerHTML=`<div class="muted" style="font-size:12px">Używane w karcie FIRE i w podziale „koszt życia”. Puste pole = wartość domyślna.</div>
+    <div class="form-ust">
+      <label>Cel dochodu pasywnego (zł/mc)<input id="u-cel" type="number" min="0" step="100" value="${+v('fire_cel_mc',5000)}"></label>
+      <label>Stopa wypłaty (% rocznie)<input id="u-swr" type="number" min="0.5" max="20" step="0.1" value="${+(v('fire_swr',0.04)*100).toFixed(2)}"></label>
+      <label>Wydatek jednorazowy od (zł)<input id="u-jedn" type="number" min="0" step="50" value="${+v('prog_jednorazowych',300)}"></label>
+      <label>Średnia z ilu pełnych miesięcy<input id="u-n" type="number" min="1" max="36" step="1" value="${+v('miesiecy_podsumowania',4)}"></label>
+      <label>Tagi dzieci (po przecinku)<input id="u-dzieci" maxlength="400" value="${escH(v('tagi_dzieci',['Dzieci']).join(', '))}"></label>
+      <label>Tagi wydarzeń (po przecinku)<input id="u-wyd" maxlength="400" value="${escH(v('tagi_wydarzen',[]).join(', '))}"></label>
+    </div>
+    <button class="tab" id="u-zapisz">💾 Zapisz ustawienia</button>`;
+  document.getElementById('u-zapisz').onclick=async()=>{
+    const val=id=>document.getElementById(id).value.trim(), lista=id=>val(id).split(',').map(x=>x.trim()).filter(Boolean);
+    const k={}, liczba=(id,klucz,mn=1)=>{ if(val(id)!=='') k[klucz]=Number(val(id))*mn; };
+    liczba('u-cel','fire_cel_mc'); liczba('u-swr','fire_swr',0.01); liczba('u-jedn','prog_jednorazowych'); liczba('u-n','miesiecy_podsumowania');
+    if(k.fire_swr!==undefined) k.fire_swr=Math.round(k.fire_swr*10000)/10000;
+    k.tagi_dzieci=lista('u-dzieci'); k.tagi_wydarzen=lista('u-wyd');
+    if(await zapiszUst('/api/konfiguracja',k,'ustawienia')){ konf=k; wPrzeladuj(); }
+  };
+}
+
 // TAGI — podsumowanie per tag + szczegóły + tagowanie hurtem (zakres dat + filtr opisu)
 function renderTagi(){
   const G=document.getElementById('tagi'); if(!G) return;
@@ -807,7 +909,7 @@ function renderTagi(){
     if(!bulk.od){ alert('Podaj datę początkową.'); return; }
     const od=bulk.od, dd=bulk.do||bulk.od;
     let rx=null; if(bulk.f.trim()){
-      const ryz=W.reguly&&W.reguly.ryzykowny(bulk.f.trim()); if(ryz){ alert('Filtr odrzucony: '+ryz); return; }   // ReDoS
+      const ryz=globalThis.W.reguly&&globalThis.W.reguly.ryzykowny(bulk.f.trim()); if(ryz){ alert('Filtr odrzucony: '+ryz); return; }   // ReDoS
       try{ rx=new RegExp(bulk.f.trim(),'i'); }catch(e){ alert('Błędny filtr (regex): '+e.message); return; } }
     bulk.preview=DATA.out.filter(t=>t.d>=od && t.d<=dd && (!rx || rx.test(t.o))).sort((a,b)=>a.d<b.d?-1:1);
     bulk.checked=new Set(bulk.preview.map(t=>t.id));
@@ -938,7 +1040,7 @@ function renderWplywy(){
   W.querySelectorAll('.tagrow').forEach(el=>el.onclick=()=>{const g=dec(el.dataset.g);selWpl=(selWpl===g?null:g);renderWplywy();});
 }
 
-function renderAll(){renderTabs();renderKpis();renderFire();renderPace();renderBudzety();renderDonut();renderDrill();renderWeeks();renderTop();renderTxList();renderRefunds();renderMonthsChart();renderCompare();renderWplywy();renderSubs();renderTagi();renderKategorie();}
+function renderAll(){renderTabs();renderKpis();renderFire();renderPace();renderBudzety();renderDonut();renderDrill();renderWeeks();renderTop();renderTxList();renderRefunds();renderMonthsChart();renderCompare();renderWplywy();renderSubs();renderTagi();renderKategorie();renderReguly();renderUstawienia();}
 
 async function przelicz(){
   const b=document.getElementById('btn-przelicz'); if(b){b.disabled=true;b.textContent='Przeliczam…';}
@@ -954,6 +1056,8 @@ async function przelicz(){
   await loadWlasne();
   await loadTagi();
   await loadBudzety();
+  await loadReguly();
+  await loadKonf();
   renderAll();
   const b=document.getElementById('btn-przelicz');
   if(b && SERVER){ b.style.display=''; b.onclick=przelicz; }

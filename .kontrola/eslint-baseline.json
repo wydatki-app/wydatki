@@ -1,10 +1,11 @@
 {
  "src/app.js::no-unsanitized/property::error": 4,
  "src/app.js::security/detect-unsafe-regex::warn": 1,
- "src/dashboard/dashboard.js::no-unsanitized/property::error": 21,
- "src/dashboard/dashboard.js::security/detect-non-literal-regexp::warn": 1,
+ "src/dashboard/dashboard.js::no-unsanitized/property::error": 23,
+ "src/dashboard/dashboard.js::security/detect-non-literal-regexp::warn": 2,
  "src/parsery/banki.js::security/detect-non-literal-regexp::warn": 2,
  "src/parsery/banki.js::security/detect-unsafe-regex::warn": 1,
+ "src/rdzen/magazyn.js::security/detect-non-literal-regexp::warn": 1,
  "src/rdzen/magazyn.js::security/detect-unsafe-regex::warn": 1,
  "src/rdzen/model.js::security/detect-unsafe-regex::warn": 1,
  "src/rdzen/pdf.js::security/detect-non-literal-regexp::warn": 1,

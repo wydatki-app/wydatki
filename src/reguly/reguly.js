@@ -96,14 +96,17 @@
     return out;
   }
 
-  function zbuduj(tekstYaml) {
+  // wlasne: reguły dodane w aplikacji (reguly_wlasne.json, [{wzorzec, kategoria}]) — sprawdzane PRZED
+  // regułami z pliku: to świadoma decyzja użytkownika o konkretnym sprzedawcy
+  function zbuduj(tekstYaml, wlasne) {
     const y = wczytajYaml(tekstYaml), bledy = [];
     const kat = y.bloki.map(([n, p]) => [n, kompiluj(p, bledy)]);
+    const wl = (wlasne || []).map(r => [r.kategoria, kompiluj([r.wzorzec], bledy)]);
     return {
       kategorie: [...new Set(y.bloki.map(([n]) => n))],
       wplywyGrupy: [...y.wplywy.keys()],
       wykluczRe: kompiluj(y.wyklucz, bledy),
-      katRe: kat,
+      katRe: [...wl, ...kat],
       tagRe: [...y.tagi].map(([n, p]) => [n, kompiluj(p, bledy)]),
       wplywyRe: [...y.wplywy].map(([n, p]) => [n, kompiluj(p, bledy)]),
       bledy,
@@ -153,5 +156,17 @@
     return { out, in: wpl };
   }
 
-  W.reguly = { wczytajYaml, zbuduj, ryzykowny, wykluczona, kategoria, grupaWplywu, autoTagi, doDashboardu };
+  // propozycja wzorca z opisu transakcji: pierwsze znaczące słowo (dwa, gdy pierwsze krótkie),
+  // bez słów technicznych banku; znaki specjalne regex escapowane — wynik to dosłowny fragment opisu
+  const OGOLNE = new Set(["zakup", "przy", "użyciu", "uzyciu", "karty", "kartą", "karta", "płatność", "platnosc",
+    "blik", "przelew", "operacja", "kwotę", "kwote", "sklep", "s.a.", "o.o."]);
+  function sugestia(opis) {
+    const slowa = (String(opis || "").toLowerCase().match(/\p{L}[\p{L}\p{N}.&'-]*/gu) || [])
+      .filter(s => s.length >= 3 && !OGOLNE.has(s));
+    if (!slowa.length) return "";
+    const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return (slowa[0].length < 5 && slowa[1] ? slowa.slice(0, 2) : slowa.slice(0, 1)).map(esc).join("\\s+");
+  }
+
+  W.reguly = { wczytajYaml, zbuduj, ryzykowny, sugestia, wykluczona, kategoria, grupaWplywu, autoTagi, doDashboardu };
 })(globalThis.W = globalThis.W || {});

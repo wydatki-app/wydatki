@@ -167,7 +167,8 @@
   }
 
   function pobierz(nazwa, tekst) {
-    const url = URL.createObjectURL(new Blob([tekst], { type: "application/json" }));
+    const typ = /\.ya?ml$/i.test(nazwa) ? "text/yaml" : "application/json";
+    const url = URL.createObjectURL(new Blob([tekst], { type: typ + ";charset=utf-8" }));
     const a = document.createElement("a");
     a.href = url; a.download = nazwa;
     document.body.appendChild(a); a.click(); a.remove();
@@ -175,9 +176,9 @@
   }
 
   // --- dane dla dashboardu (odpowiednik build_html z wersji Python) ------------------
-  function konfiguracja(tekst) {
-    let k = {};
-    try { k = JSON.parse(tekst || "{}"); } catch (e) { k = {}; }
+  // k: zwalidowany obiekt z magazynu (konfiguracja.json); brakujące pola = wartości domyślne
+  function konfiguracja(k) {
+    k = k || {};
     const lista = v => (Array.isArray(v) ? v.filter(x => typeof x === "string") : null);
     const liczba = (v, d) => (typeof v === "number" && isFinite(v) ? v : d);
     return {
@@ -189,16 +190,19 @@
 
   async function przygotuj(profil, wpisy) {
     const { dane, ustawienia, sciezki, czas, pominiete } = await czytajWpisy(wpisy);
-    const R = W.reguly.zbuduj(ustawienia["kategorie.yaml"] || W.DOMYSLNE_REGULY);
+    const tekstRegul = ustawienia["kategorie.yaml"] || W.DOMYSLNE_REGULY;
+    const R0 = W.reguly.zbuduj(tekstRegul);
+    const zrodlo = M.wczytaj(profil, ustawienia, R0.kategorie, czas);          // ustawienia (w tym reguły własne)
+    const R = M.stan.reguly.length ? W.reguly.zbuduj(tekstRegul, M.stan.reguly) : R0;
     const imp = W.importuj(dane);
     const r = W.reguly.doDashboardu(R, imp.txs);
-    const zrodlo = M.wczytaj(profil, ustawienia, R.kategorie, czas);
     const DATA = {
       out: r.out, in: r.in, pal: PALETA, server: true,
       budzety: M.stan.budzety,
       wplywy_grupy: [...R.wplywyGrupy, "Inne_wpływy"],
       kategorie: R.kategorie, kategorie_wlasne: M.stan.wlasne,
-      sumcfg: konfiguracja(ustawienia["konfiguracja.json"]),
+      sumcfg: konfiguracja(M.stan.konfiguracja),
+      reguly_yaml: tekstRegul, reguly_z_pliku: !!ustawienia["kategorie.yaml"],
     };
     const raport = { imp, pominiete, bledyRegul: R.bledy, regulyZPliku: !!ustawienia["kategorie.yaml"], zrodlo, zUchwytu: false };
     return { DATA, raport, sciezki };
@@ -465,5 +469,6 @@
   }
 
   W.app = { przygotuj, uruchom, uruchomZUchwytu, wyczyscDane, zmianyBezKopii };
+  W.pobierz = pobierz;
   if (typeof document !== "undefined" && document.getElementById("start")) start();
 })(globalThis.W = globalThis.W || {});
