@@ -1,8 +1,12 @@
 # Wydatki — dashboard, który nie wysyła Twoich danych nikomu
 
-**[▶ Zobacz demo](https://wydatki-app.github.io/wydatki/#demo)** · **[⬇ Pobierz wydatki.html](https://github.com/wydatki-app/wydatki/releases/latest/download/wydatki.html)**
+**[▶ Zobacz demo](https://wydatki-app.github.io/wydatki/#demo)** · **[⬇ Pobierz wydatki.html](https://github.com/wydatki-app/wydatki/releases/latest/download/wydatki.html)** · **[❓ Jak to działa](https://wydatki-app.github.io/wydatki/jak-to-dziala.html)**
 
-Wrzucasz wyciągi z banku (CSV), dostajesz automatyczne kategorie, budżety, trendy
+[![Jak działa Wydatki: wyciągi do folderu → rozpoznanie banku → kontrola i duplikaty → kategorie i reguła z Twojej poprawki → dashboard i cel FIRE](docs/animacja.gif)](https://wydatki-app.github.io/wydatki/animacja.html)
+
+*Cały proces w 25 sekundach (dane fikcyjne). Krok po kroku — kolejność reguł, warstwy kosztu życia, gdzie zapisują się zmiany: [jak to działa](https://wydatki-app.github.io/wydatki/jak-to-dziala.html).*
+
+Wrzucasz wyciągi z banku (CSV lub PDF), dostajesz automatyczne kategorie, budżety, trendy
 i odpowiedź na pytanie „ile naprawdę wydaję co miesiąc” — także w przeliczeniu na kapitał potrzebny do FIRE.
 
 Cała aplikacja to **jeden plik HTML**, który działa w Twojej przeglądarce. Bez instalacji, bez konta, bez serwera.
@@ -40,8 +44,6 @@ Bank jest rozpoznawany po treści pliku — podfoldery służą tylko porządkow
 | Koszt życia | razem → bez podróży → bez dzieci/rodziny → bez jednorazowych = koszt bieżący |
 | FIRE | koszt życia przeliczony na kapitał przy stopie wypłaty 4% |
 | Trendy | miesiąc do miesiąca, tempo wydatków w miesiącu, drill-down do transakcji |
-
-Jak działa cały proces: [animacja w 25 sekund](docs/animacja.html) i [opis krok po kroku](docs/jak-to-dziala.html) (od wyciągu do celu FIRE, kolejność reguł, miejsce zapisu). Obie strony są też na stronie demo.
 
 ## Bezpieczeństwo
 

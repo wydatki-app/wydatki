@@ -33,6 +33,9 @@ h1{font-size:26px;margin:0 0 4px}
 /* widoczny przez 20 s od pojawienia: dłużej niż reszta sceny (≤ 5 s), krócej niż do kolejnego startu sceny (≥ 21 s) */
 @keyframes wejscie{0%{opacity:0;transform:translateY(8px)}2%{opacity:1;transform:none}79%{opacity:1;transform:none}80%,100%{opacity:0}}
 .scena .w{animation-fill-mode:both}
+/* etykieta zastępowana inną: znika (visibility, bez przenikania) w chwili --do, do końca sceny */
+.w.zn-do{animation-name:wejscie,schowaj;animation-delay:calc(var(--k) * 5s + var(--o) * 1s - 25s),calc(var(--k) * 5s + var(--do) * 1s - 25s)}
+@keyframes schowaj{0%{visibility:hidden}8%{visibility:hidden}8.1%,100%{visibility:visible}}
 /* kropki postępu */
 .kropki{display:flex;gap:8px;justify-content:center;margin:12px 0 0}
 .kropki span{width:9px;height:9px;border-radius:50%;background:var(--line);animation:kropka 25s infinite;animation-delay:calc(var(--k) * 5s - 25s)}
@@ -85,6 +88,7 @@ a{color:var(--acc)}
   .scena-box{aspect-ratio:auto;min-height:0;display:grid;gap:0}
   .scena{position:relative;opacity:1;animation:none;border-bottom:1px solid var(--line)}
   .w,.okno.zn{opacity:1;animation:none}
+  .w.zn-do{display:none}
   .okno{position:static;margin-top:8px}
   .pasek i{animation:none;width:72%}
   .kropki{display:none}}
@@ -145,9 +149,9 @@ a{color:var(--acc)}
     <table class="tab">
       <tr><td>02.10</td><td class="o">BIEDRONKA 1234</td><td class="k">−86,40</td><td><span class="chipbox"><span class="znacz ok w" style="--k:3;--o:.3">Jedzenie dom</span></span></td></tr>
       <tr><td>03.10</td><td class="o">ORLEN STACJA 452</td><td class="k">−240,00</td><td><span class="chipbox"><span class="znacz tr w" style="--k:3;--o:.5">Transport</span></span></td></tr>
-      <tr><td>06.10</td><td class="o">STOKROTKA 0123</td><td class="k">−42,10</td><td><span class="chipbox"><span class="znacz szary w" style="--k:3;--o:.7">Inne</span><span class="znacz ok w" style="--k:3;--o:1.6">Jedzenie dom ✎</span></span></td></tr>
-      <tr><td>13.10</td><td class="o">STOKROTKA 0123</td><td class="k">−58,90</td><td><span class="chipbox"><span class="znacz szary w" style="--k:3;--o:.7">Inne</span><span class="znacz ok w" style="--k:3;--o:3.4">Jedzenie dom</span></span></td></tr>
-      <tr><td>20.10</td><td class="o">STOKROTKA 0123</td><td class="k">−37,25</td><td><span class="chipbox"><span class="znacz szary w" style="--k:3;--o:.7">Inne</span><span class="znacz ok w" style="--k:3;--o:3.4">Jedzenie dom</span></span></td></tr>
+      <tr><td>06.10</td><td class="o">STOKROTKA 0123</td><td class="k">−42,10</td><td><span class="chipbox"><span class="znacz szary w zn-do" style="--k:3;--o:.7;--do:1.6">Inne</span><span class="znacz ok w" style="--k:3;--o:1.6">Jedzenie dom ✎</span></span></td></tr>
+      <tr><td>13.10</td><td class="o">STOKROTKA 0123</td><td class="k">−58,90</td><td><span class="chipbox"><span class="znacz szary w zn-do" style="--k:3;--o:.7;--do:3.4">Inne</span><span class="znacz ok w" style="--k:3;--o:3.4">Jedzenie dom</span></span></td></tr>
+      <tr><td>20.10</td><td class="o">STOKROTKA 0123</td><td class="k">−37,25</td><td><span class="chipbox"><span class="znacz szary w zn-do" style="--k:3;--o:.7;--do:3.4">Inne</span><span class="znacz ok w" style="--k:3;--o:3.4">Jedzenie dom</span></span></td></tr>
     </table>
     <div class="okno zn" style="--k:3;--o:1.9"><b>Podobny opis ma jeszcze 2 transakcje</b>
       Przypisać je — i przyszłe — do „Jedzenie dom”? Rozpoznawać po: <code>stokrotka</code><br><span class="btn">OK</span></div>
