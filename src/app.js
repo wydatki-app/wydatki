@@ -221,6 +221,9 @@
     return `<div class="imp-bar"><div><b>${profil === "demo" ? "DEMO — dane fikcyjne" : escH(profil)}</b> · ${escH(banki)}
       · reguły: ${raport.regulyZPliku ? "z folderu" : "domyślne"} · <span id="imp-zapis"></span>
       · <button class="lnk" id="imp-zmien">zmień folder</button></div>
+      ${profil === "demo" ? `<div class="imp-info">VeloBank: w demo brak przykładu — wyciągi Velo to pliki <b>PDF</b>
+        („Historia rachunku” / „Historia karty” z bankowości internetowej). W swoim folderze wrzuć je do
+        <code>dane/velo/</code> — aplikacja odczyta je sama, bez konwersji.</div>` : ""}
       <div class="imp-kopia" id="imp-kopia" role="status" hidden></div>
       <div class="imp-warn" id="imp-blad" hidden></div>
       ${ostrz.map(o => `<div class="imp-warn">${o}</div>`).join("")}</div>`;

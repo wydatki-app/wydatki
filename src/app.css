@@ -16,6 +16,6 @@ body{background:var(--bg);color:var(--txt)}
 .start code{font-size:13px}
 .imp-bar{background:var(--acc-soft);color:var(--txt);font:13px/1.5 system-ui,sans-serif;padding:8px 16px;border-bottom:1px solid var(--line)}
 .imp-warn{color:var(--warn);margin-top:4px;word-break:break-word}
-.imp-kopia{margin-top:4px;word-break:break-word}
+.imp-kopia,.imp-info{margin-top:4px;word-break:break-word}
 .imp-kopia.pilne{color:var(--warn);border-left:3px solid var(--warn);padding-left:8px}
 .lnk{background:none;border:0;padding:0;color:var(--acc);text-decoration:underline;cursor:pointer;font:inherit}

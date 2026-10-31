@@ -5,7 +5,8 @@ Test parytetu: wersja przeglądarkowa (JS) vs Python (analiza_wydatkow.py) na ty
 
 Porównuje wynik extract_for_json: wydatki (id, data, opis, kwota, kategoria, tagi z reguł) i wpływy.
 JS uruchamiany w Firefoksie headless (bez Node) — wynik przez window.dump() na stdout.
-VeloBank (PDF) pominięty po obu stronach — wersja JS jeszcze go nie obsługuje.
+VeloBank (PDF) pominięty po obu stronach (JS go czyta, ale Python wymaga pdftotext); mBank i PKO BP
+— tylko w wersji JS, więc poza zakresem (porównywane foldery: millenet/, revolut/, alior/).
 
 Użycie:
     python3 -I testy/parytet.py <katalog_danych> [--python <ścieżka do analiza_wydatkow.py>]

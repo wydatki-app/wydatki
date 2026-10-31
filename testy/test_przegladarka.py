@@ -110,7 +110,10 @@ TEST = r"""
     // 1. demo: import i dashboard
     await W.app.uruchom("demo", W.DEMO); await czekaj();
     ok("demo: dashboard widoczny", !document.getElementById("app").hidden && document.querySelector("#app .kpi"));
-    ok("demo: 480 wydatków", document.getElementById("app").textContent.includes("Millennium: 1 pl. / 384 tr."));
+    const dt = document.getElementById("app").textContent;
+    ok("demo: Millennium 384 tr. (dane bez zmian)", dt.includes("Millennium: 1 pl. / 384 tr."));
+    ok("demo: mBank i PKO BP w demo", /mBank: 1 pl\. \/ \d+ tr\./.test(dt) && /PKO BP: 1 pl\. \/ \d+ tr\./.test(dt));
+    ok("demo: informacja o VeloBank (PDF)", dt.includes("VeloBank: w demo brak przykładu") && dt.includes("dane/velo/"));
 
     // 1b. mBank: plik w CP1250 (File), dekodowanie + parser; przelew własny pominięty
     const mb = new File([new Uint8Array(MBANK_BAJTY)], "mbank.csv");

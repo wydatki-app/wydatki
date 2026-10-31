@@ -4,8 +4,11 @@
 Generator FIKCYJNYCH wyciągów do demo dashboardu wydatków.
 
 Fikcyjny użytkownik: Jan Kowalski (rodzina 2+1, mieszkanie w mieście).
-Wyjście (nadpisuje): demo/dane/{millennium,revolut,alior}/demo.csv
-Format plików = format eksportu z banków (Millennium CSV, Revolut CSV z aplikacji, Alior CSV).
+Wyjście (nadpisuje): demo/dane/{millennium,revolut,alior,mbank,pkobp}/demo.csv
+Format plików = format eksportu z banków (Millennium CSV, Revolut CSV z aplikacji, Alior CSV,
+mBank „Elektroniczne zestawienie operacji”, PKO BP „Zestawienie operacji”). Prawdziwe eksporty mBank i PKO BP
+są w Windows-1250 — demo zapisuje UTF-8 (aplikacja czyta oba). VeloBank (PDF) celowo bez pliku demo.
+mBank i PKO BP losowane osobnym generatorem (seed+1, seed+2), więc pliki pozostałych banków się nie zmieniają.
 
 Użycie:
     python3 -I narzedzia/generuj_dane.py                     # domyślny okres i seed (powtarzalne)
@@ -73,6 +76,23 @@ ALIOR = [
     ("SHELL 7781", 180, 280, 0.7),
     ("RESTAURACJA STARA KUCHNIA", 120, 300, 0.6),
 ]
+MBANK = [                         # drugie konto Jana: drobne zakupy, BLIK
+    ("ROSSMANN 214        /WARSZAWA", 15, 90, 2),
+    ("PEPCO 1123          /WARSZAWA", 20, 120, 1),
+    ("SUPER-PHARM ARKADIA /WARSZAWA", 25, 110, 0.6),
+    ("COSTA COFFEE 0412   /WARSZAWA", 14, 32, 2),
+    ("BOLT.EU/O/2605      /TALLINN", 14, 48, 1.5),
+    ("ZABKA Z7781 K.1     /WARSZAWA", 6, 35, 3),
+]
+MBANK_BLIK = [("PYSZNE.PL", 45, 110, 1.2), ("ALLEGRO.PL", 30, 220, 0.8)]
+PKO = [                           # (miejsce, miasto, min, max, ile/mc)
+    ("STOKROTKA NR 0123", "WARSZAWA", 40, 210, 4),
+    ("DINO POLSKA 2231", "PIASECZNO", 30, 160, 2),
+    ("CIRCLE K 4410", "WARSZAWA", 150, 290, 1),
+    ("APTEKA POD ORLEM", "WARSZAWA", 15, 90, 1),
+    ("MULTIKINO ZLOTE TARASY", "WARSZAWA", 45, 120, 0.4),
+]
+
 # jednorazowe: (data, plik, opis, kwota)
 JEDNORAZOWE = [
     ("2026-05-24", "mil", "KWIACIARNIA BUKIET DLA MAMY", 160.00),
@@ -167,6 +187,8 @@ def main():
     os.makedirs(os.path.join(DANE, "millennium"), exist_ok=True)
     os.makedirs(os.path.join(DANE, "revolut"), exist_ok=True)
     os.makedirs(os.path.join(DANE, "alior"), exist_ok=True)
+    os.makedirs(os.path.join(DANE, "mbank"), exist_ok=True)
+    os.makedirs(os.path.join(DANE, "pkobp"), exist_ok=True)
 
     # --- Millennium CSV (UTF-8 z BOM, przecinek, cudzysłowy) ---
     saldo = 8000.0
@@ -204,8 +226,93 @@ def main():
             nad, odb = ("JAN KOWALSKI", o) if k < 0 else (o, "JAN KOWALSKI")
             w.writerow([d.strftime("%d-%m-%Y"), d.strftime("%d-%m-%Y"), nad, odb, o, kw, "PLN", kw, "PLN", "", ""])
 
-    print(f"Wygenerowano: Millennium {len(mil)}, Revolut {len(rev)}, Alior {len(ali) + len(ali_zwrot)} transakcji "
-          f"({od} → {do}, seed {a.seed})")
+    n_mb = zapisz_mbank(random.Random(a.seed + 1), od, do)
+    n_pko = zapisz_pkobp(random.Random(a.seed + 2), od, do)
+    print(f"Wygenerowano: Millennium {len(mil)}, Revolut {len(rev)}, Alior {len(ali) + len(ali_zwrot)}, "
+          f"mBank {n_mb}, PKO BP {n_pko} transakcji ({od} → {do}, seed {a.seed})")
+
+
+def pl(k):
+    """1050.5 → '1 050,50' (format kwot mBank)."""
+    return f"{k:,.2f}".replace(",", " ").replace(".", ",")
+
+
+def zapisz_mbank(rng, od, do):
+    ops = []                          # (data_ks, data_op, opis_operacji, tytuł, nadawca/odbiorca, kwota)
+    for y, m in months(od, do):
+        for d, o, k in losuj(rng, MBANK, y, m, od, do):
+            ks = min(d + timedelta(days=1), do)
+            ops.append((ks, ks, "ZAKUP PRZY UŻYCIU KARTY", f"{o}   DATA TRANSAKCJI: {d.isoformat()}", "  ", -k))
+        for d, o, k in losuj(rng, MBANK_BLIK, y, m, od, do):
+            ops.append((d, d, "PŁATNOŚĆ BLIK", f"{o} ZAMÓWIENIE {rng.randint(100000, 999999)}", o, -k))
+        d = date(y, m, min(11, days_in(y, m)))
+        if od <= d <= do:             # zasilenie z konta głównego (wykluczane regułą „jan kowalski”)
+            ops.append((d, d, "PRZELEW WEWNĘTRZNY PRZYCHODZĄCY", "ZASILENIE", "JAN KOWALSKI  UL. ZIELONA 8 M.14 00-001 WARSZAWA", 600.00))
+        d = date(y, m, min(28, days_in(y, m)))
+        if od <= d <= do:             # przelew własny — parser go pomija
+            ops.append((d, d, "PRZELEW WŁASNY", "NA OSZCZĘDNOŚCI", "JAN KOWALSKI", -100.00))
+    ops.sort(key=lambda r: r[0])
+    uzn = [o for o in ops if o[5] > 0]; obc = [o for o in ops if o[5] < 0]
+    saldo0 = 350.00
+    with open(os.path.join(DANE, "mbank", "demo.csv"), "w", encoding="utf-8", newline="") as f:
+        w = lambda s: f.write(s + "\r\n")
+        w("mBank S.A. Bankowość Detaliczna;"); w("\t\tSkrytka Pocztowa 2108;"); w("\t\t90-959 Łódź 2;"); w("")
+        w("#Klient;"); w("JAN KOWALSKI;"); w(""); w("Elektroniczne zestawienie operacji;"); w("")
+        w("#Za okres:;"); w(f"{od:%d.%m.%Y};{do:%d.%m.%Y};"); w("#Rodzaj rachunku;"); w("EKONTO;"); w("#Waluta;"); w("PLN;")
+        w("#Numer rachunku;"); w("00 0000 0000 0000 0000 0000 0001 ;"); w("")
+        w("#Podsumowanie obrotów na rachunku;#Liczba operacji;#Wartość operacji")
+        w(f"Uznania;{len(uzn)};{pl(sum(o[5] for o in uzn))} PLN;")
+        w(f"Obciążenia;{len(obc)};{pl(-sum(o[5] for o in obc))} PLN;"); w("")
+        w(f"#Saldo początkowe;{pl(saldo0)} PLN;"); w("")
+        w("#Data księgowania;#Data operacji;#Opis operacji;#Tytuł;#Nadawca/Odbiorca;#Numer konta;#Kwota;#Saldo po operacji;")
+        saldo = saldo0
+        for ks, dop, typ, tyt, kto, k in ops:
+            saldo += k
+            w(f'{ks.isoformat()};{dop.isoformat()};{typ};"{tyt}";"{kto}";\'\';{pl(k)};{pl(saldo)};')
+        w(""); w(f";;;;;;#Saldo końcowe;{pl(saldo)};")
+    return len(ops)
+
+
+def zapisz_pkobp(rng, od, do):
+    ops = []                          # (data op., data waluty, typ, kwota, kolumny opisu)
+    for y, m in months(od, do):
+        for miejsce, miasto, lo, hi, ile in PKO:
+            for d, _, k in losuj(rng, [(miejsce, lo, hi, ile)], y, m, od, do):
+                ks = min(d + timedelta(days=2), do)
+                ops.append((ks, d, "Płatność kartą", -k, [f"Tytuł: 000{rng.randint(100000, 999999)} 7423{rng.randint(10**15, 10**16 - 1)} ",
+                            f"Lokalizacja: Adres: {miejsce} Miasto: {miasto} Kraj: POLSKA",
+                            f"Data wykonania operacji: {d.isoformat()}", f"Oryginalna kwota operacji: {k:.2f}",
+                            "Numer karty: 400000******0000"]))
+        for _ in range(2):            # bankomat → kategoria Gotówka
+            d = date(y, m, rng.randint(1, days_in(y, m)))
+            if od <= d <= do:
+                k = float(rng.choice([200, 300, 500]))
+                ops.append((d, d, "Wypłata z bankomatu", -k, ["Tytuł: PKO BP 1000000000 0001 ",
+                            "Lokalizacja: Adres: UL. MARSZAŁKOWSKA 1 Miasto: WARSZAWA Kraj: POLSKA",
+                            f"Data wykonania operacji: {d.isoformat()} 10:15", f"Oryginalna kwota operacji: {k:.2f}",
+                            "Numer karty: 400000******0000"]))
+        d = date(y, m, min(3, days_in(y, m)))
+        if od <= d <= do:
+            ops.append((d, d, "Przelew z rachunku", -129.00, ["Rachunek odbiorcy: 00 0000 0000 0000 0000 0000 0002",
+                        "Nazwa odbiorcy: BENEFIT SYSTEMS S.A.", "Adres odbiorcy: WARSZAWA", "Tytuł: MULTISPORT KARTA 0001"]))
+    zwrot = date(2026, 7, 21)
+    if od <= zwrot <= do:
+        ops.append((zwrot, zwrot, "Przelew na konto", 1240.00, ["Rachunek nadawcy: 00 0000 0000 0000 0000 0000 0003",
+                    "Nazwa nadawcy: URZĄD SKARBOWY WARSZAWA", "Adres nadawcy: WARSZAWA", "Tytuł: ZWROT PODATKU PIT-37 ZA 2025"]))
+    ops.sort(key=lambda r: r[0], reverse=True)
+    q = lambda v: '"' + str(v).replace('"', '""') + '"'
+    saldo = 4200.00
+    with open(os.path.join(DANE, "pkobp", "demo.csv"), "w", encoding="utf-8", newline="") as f:
+        f.write(",".join(q(x) for x in ["Data operacji", "Data waluty", "Typ transakcji", "Kwota", "Waluta",
+                                         "Saldo po transakcji", "Opis transakcji", "", "", "", "", ""]) + "\r\n")
+        # blokada (autoryzacja w toku) — parser ją pomija
+        f.write(",".join(q(x) for x in ["", do.isoformat(), "Blokada", "-54.20", "PLN", "W rozliczeniu", "Tytuł: P400000000000001  ",
+                                         "Lokalizacja: Adres: STOKROTKA NR 0123 Miasto: WARSZAWA Kraj: POLSKA", "", "", "", ""]) + "\r\n")
+        for dop, dwal, typ, k, opis in ops:
+            kol = (opis + [""] * 6)[:6]
+            f.write(",".join(q(x) for x in [dop.isoformat(), dwal.isoformat(), typ, f"{k:+.2f}", "PLN", f"{saldo:+.2f}"] + kol) + "\r\n")
+            saldo -= k
+    return len(ops)
 
 
 if __name__ == "__main__":
