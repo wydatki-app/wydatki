@@ -9,7 +9,7 @@
 
   function parseAmount(s) {
     s = (s || "").trim().replace(/ /g, "").replace(/,/g, ".");
-    if (!s || !LICZBA.test(s)) return null;
+    if (!s || s.length > 32 || !LICZBA.test(s)) return null;   // limit: regex ma czas kwadratowy na długich ciągach cyfr
     return Number(s);
   }
 
@@ -54,5 +54,15 @@
     return txs;
   }
 
-  W.model = { parseAmount, round2, pyFloat, obetnij, mk, scal };
+  // Data transakcji z pliku = dane niezaufane (plik mógł przygotować ktoś inny): tylko RRRR-MM-DD
+  // z poprawnym miesiącem i dniem. Reszta aplikacji (miesiące, tygodnie, HTML) zakłada ten format.
+  const DATA_RE = /^(\d{4})-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+  function poprawnaData(s) {
+    const m = typeof s === "string" && DATA_RE.exec(s);
+    if (!m) return false;
+    const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+    return d.getUTCMonth() === +m[2] - 1;                 // odrzuca np. 2026-02-31
+  }
+
+  W.model = { parseAmount, round2, pyFloat, obetnij, mk, scal, poprawnaData };
 })(globalThis.W = globalThis.W || {});

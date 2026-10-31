@@ -214,6 +214,8 @@
     const banki = Object.entries(perBank).map(([b, v]) => `${NAZWY_BANKOW[b]}: ${v.pliki} pl. / ${v.n} tr.`).join(" · ") || "brak rozpoznanych wyciągów";
     const ostrz = [];
     if (raport.imp.nierozpoznane.length) ostrz.push("Nierozpoznane pliki: " + raport.imp.nierozpoznane.map(escH).join(", "));
+    if (raport.imp.odrzucone.length) ostrz.push("Pominięte wiersze z błędną datą: "
+      + raport.imp.odrzucone.map(o => `${escH(o.sciezka)} (${o.n})`).join(", "));
     if (raport.pominiete.length) ostrz.push("Pominięte: " + raport.pominiete.map(escH).join(", "));
     if (raport.bledyRegul.length) ostrz.push("Błędne reguły w kategorie.yaml: " + raport.bledyRegul.map(escH).join("; "));
     if (raport.zUchwytu) ostrz.push("Brakuje jakiegoś wyciągu? Ta przeglądarka nie widzi plików z dwukropkiem „:” w nazwie "

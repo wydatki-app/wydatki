@@ -8,10 +8,32 @@
 
   const latin1 = u8 => { let s = ""; for (let i = 0; i < u8.length; i += 8192) s += String.fromCharCode.apply(null, u8.subarray(i, i + 8192)); return s; };
 
-  async function inflate(u8) {
-    const ds = new DecompressionStream("deflate");
-    const strumien = new Blob([u8]).stream().pipeThrough(ds);
-    return new Uint8Array(await new Response(strumien).arrayBuffer());
+  // Limity przeciw złośliwym plikom (bomba deflate, ogromne zakresy w fontach, cykle w drzewie stron).
+  // Prawdziwy wyciąg Velo: strumienie rzędu setek KB, kilkaset kodów glifów.
+  const MAX_ROZPAK = 50 * 1024 * 1024;     // bajty po dekompresji — łącznie na cały plik
+  const MAX_KODOW = 65536;                 // kody glifów w jednym zakresie /W lub bfrange
+  const MAX_SPACJI = 200;                  // spacje wstawiane za jedną przerwę w linii
+
+  // dekompresja strumieniowa z budżetem: przekroczenie = wyjątek (plik pominięty, nie zawieszona karta)
+  async function inflate(u8, budzet) {
+    const czytnik = new Blob([u8]).stream().pipeThrough(new DecompressionStream("deflate")).getReader();
+    const kawalki = [];
+    let n = 0;
+    for (;;) {
+      const { done, value } = await czytnik.read();
+      if (done) break;
+      n += value.length;
+      budzet.zostalo -= value.length;
+      if (budzet.zostalo < 0) {
+        await czytnik.cancel().catch(() => {});
+        throw new Error("PDF: dane po dekompresji przekraczają limit 50 MB");
+      }
+      kawalki.push(value);
+    }
+    const out = new Uint8Array(n);
+    let p = 0;
+    for (const k of kawalki) { out.set(k, p); p += k.length; }
+    return out;
   }
 
   // --- obiekty ------------------------------------------------------------------
@@ -59,7 +81,7 @@
   async function strumien(obj, nr) {
     const o = obj.get(nr);
     if (!o || !o.bajty) return "";
-    return latin1(o.flate ? await inflate(o.bajty) : o.bajty);
+    return latin1(o.flate ? await inflate(o.bajty, obj.budzet) : o.bajty);
   }
 
   // --- fonty: ToUnicode + szerokości ----------------------------------------------
@@ -79,7 +101,7 @@
       for (const m of blok.matchAll(/<([0-9a-fA-F]+)>\s*<([0-9a-fA-F]*)>/g)) map.set(parseInt(m[1], 16), hexNaTekst(m[2]));
     for (const blok of txt.match(/beginbfrange[\s\S]*?endbfrange/g) || []) {
       for (const m of blok.matchAll(/<([0-9a-fA-F]+)>\s*<([0-9a-fA-F]+)>\s*(<[0-9a-fA-F]*>|\[[^\]]*\])/g)) {
-        const a = parseInt(m[1], 16), b = parseInt(m[2], 16);
+        const a = parseInt(m[1], 16), b = Math.min(parseInt(m[2], 16), a + MAX_KODOW - 1);
         if (m[3][0] === "[") {
           const lst = [...m[3].matchAll(/<([0-9a-fA-F]*)>/g)].map(x => hexNaTekst(x[1]));
           for (let c = a; c <= b && c - a < lst.length; c++) map.set(c, lst[c - a]);
@@ -106,7 +128,10 @@
           i++; let k = c;
           while (i < tok.length && tok[i] !== "]") w.set(k++, +tok[i++]);
           i++;
-        } else { const c2 = +tok[i++], sz = +tok[i++]; for (let k = c; k <= c2; k++) w.set(k, sz); }
+        } else {
+          const c2 = Math.min(+tok[i++], c + MAX_KODOW - 1), sz = +tok[i++];
+          for (let k = c; k <= c2; k++) w.set(k, sz);
+        }
       }
     }
     return { w, dw: dw ? +dw[1] : 1000 };
@@ -144,10 +169,11 @@
   // --- strony w kolejności drzewa /Pages ----------------------------------------------
   function strony(obj) {
     const korzen = [...obj.entries()].find(([, o]) => /\/Type\s*\/Pages\b/.test(o.cialo) && !/\/Parent\b/.test(o.cialo));
-    const out = [];
+    const out = [], byl = new Set();
     const odwiedz = (nr, zasobyRodzica, gl) => {
       const o = obj.get(nr);
-      if (!o || gl > 50) return;
+      if (!o || gl > 50 || byl.has(nr)) return;          // byl: cykl/powtórzenie w /Kids = wykładnicza liczba wywołań
+      byl.add(nr);
       const zas = /\/Resources\s+(\d+\s+\d+\s+R|<<[\s\S]*>>)/.exec(o.cialo);
       const zasoby = zas ? zas[1] : zasobyRodzica;
       if (/\/Type\s*\/Pages\b/.test(o.cialo)) {
@@ -295,7 +321,10 @@
       for (const x of z) {
         if (kon != null) {
           const przerwa = x.x - kon, jedn = 0.5 * x.h;
-          if (przerwa > 0.15 * x.h) t += " ".repeat(Math.max(1, Math.round(przerwa / jedn)));
+          if (przerwa > 0.15 * x.h) {
+            const n = Math.round(przerwa / jedn);
+            t += " ".repeat(Number.isFinite(n) ? Math.min(MAX_SPACJI, Math.max(1, n)) : 1);
+          }
         }
         t += x.t;
         kon = x.x + x.w;
@@ -311,6 +340,7 @@
     if (!s.startsWith("%PDF-")) return null;
     if (/\/Encrypt\b/.test(s)) throw new Error("PDF zaszyfrowany — nieobsługiwany");
     const obj = obiekty(u8, s);
+    obj.budzet = { zostalo: MAX_ROZPAK };
     const out = [];
     for (const st of strony(obj)) {
       const fonty = {};

@@ -187,7 +187,7 @@ async function saveBudzety(){
   if(SERVER){
     try{ const r=await wApi('/api/budzety',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(budzety)});
          const j=await r.json().catch(()=>({})); if(!r.ok||!j.ok) throw new Error(j.error||('HTTP '+r.status)); }
-    catch(e){ alert('Nie zapisano budżetów: '+e.message); }
+    catch(e){ alert('Nie zapisano budżetów: '+e.message); await loadBudzety(); }   // odrzucone → stan sprzed zmiany
   } else { localStorage.setItem(LS_BUD, JSON.stringify(budzety)); }
 }
 async function loadBudzety(){
@@ -521,7 +521,7 @@ function txRow(t){
   const r=isRefund(t);
   return `<tr class="txrow ${r?'refunded':''}" data-id="${enc(t.id)}">
     <td class="chk" title="Klik = oznacz do zwrotu">${r?'↩︎':'○'}</td>
-    <td>${t.d}</td><td>${escH(t.o)}</td><td class="catcell">${catSelect(t)}</td>
+    <td>${escH(t.d)}</td><td>${escH(t.o)}</td><td class="catcell">${catSelect(t)}</td>
     <td class="tagcell">${tagsOf(t).map(g=>isAutoTag(t,g)
       ? `<span class="ttag auto" data-tag="${enc(g)}" title="Tag z reguły — klik = wyłącz dla tej transakcji">${escH(g.replace(/_/g,' '))}</span>`
       : `<span class="ttag" data-tag="${enc(g)}" title="Klik = zdejmij tag">${escH(g.replace(/_/g,' '))}</span>`).join('')}<span class="tagadd" title="Dodaj tag">+🔖</span></td>
@@ -748,7 +748,7 @@ function renderTagi(){
   const summary = tags.length ? `<div class="scroll"><table>
     <tr><th>Tag</th><th>Okres</th><th class="num">Transakcji</th><th class="num">Suma</th></tr>
     ${tags.map(g=>{const x=stat(g); return `<tr class="tagrow ${selTag===g?'sel':''}" data-tag="${enc(g)}">
-      <td><span class="chev">${selTag===g?'▾':'▸'}</span> <b>${escH(g.replace(/_/g,' '))}</b></td><td>${x.od} → ${x.do}</td>
+      <td><span class="chev">${selTag===g?'▾':'▸'}</span> <b>${escH(g.replace(/_/g,' '))}</b></td><td>${escH(x.od)} → ${escH(x.do)}</td>
       <td class="num">${x.r.length}</td><td class="num">${fmt(x.sum)} zł</td></tr>`;}).join('')}</table></div>`
     : (allTags().length ? `<div class="muted" style="font-size:12px">Brak otagowanych transakcji w okresie: ${tagPerLabel()}.</div>`
        : '<div class="muted" style="font-size:12px">Brak tagów. Dodaj „+🔖" przy transakcji albo otaguj zakres dat poniżej.</div>');
@@ -778,7 +778,7 @@ function renderTagi(){
     prev=`<div class="scroll" style="margin-top:10px"><table>
       <tr><th><input type="checkbox" id="bulk-all" ${bulk.checked.size===bulk.preview.length?'checked':''}></th><th>Data</th><th>Opis</th><th>Kategoria</th><th>Tagi</th><th class="num">Kwota</th></tr>
       ${bulk.preview.map(t=>`<tr><td><input type="checkbox" class="bulk-chk" data-id="${enc(t.id)}" ${bulk.checked.has(t.id)?'checked':''}></td>
-        <td>${t.d}</td><td>${escH(t.o)}</td><td>${escH(effCat(t).replace(/_/g,' '))}</td><td>${escH(tagsOf(t).join(', ').replace(/_/g,' '))}</td><td class="num">${fmt(t.k)}</td></tr>`).join('')}
+        <td>${escH(t.d)}</td><td>${escH(t.o)}</td><td>${escH(effCat(t).replace(/_/g,' '))}</td><td>${escH(tagsOf(t).join(', ').replace(/_/g,' '))}</td><td class="num">${fmt(t.k)}</td></tr>`).join('')}
       </table></div>
       <div class="addcat" style="margin-top:8px"><button class="tab" id="bulk-save">✔ Otaguj zaznaczone (${bulk.checked.size}) · ${fmt(sumChk)} zł</button>
         <button class="tab" id="bulk-cancel">Anuluj</button></div>`;
@@ -856,7 +856,7 @@ function budStan(b){
 function renderBudzety(){
   const B=document.getElementById('budzety'); if(!B) return;
   document.getElementById('bud-scope').textContent = period==='all' ? 'bieżący miesiąc / rok' : 'wg zakładki: '+mLbl(period);
-  const zakres=b=>[...(b.kategorie||[]).map(c=>c.replace(/_/g,' ')), ...(b.tagi||[]).map(g=>'🔖'+g.replace(/_/g,' '))].join(' + ')
+  const zakres=b=>[...(b.kategorie||[]).map(c=>escH(c.replace(/_/g,' '))), ...(b.tagi||[]).map(g=>'🔖'+escH(g.replace(/_/g,' ')))].join(' + ')
                   + ((b.bez_tagow||[]).length?` (bez 🔖${escH(b.bez_tagow.join(', '))})`:'');
   const rowsHtml = budzety.map((b,i)=>{
     const x=budStan(b), pct=x.limit?x.wyd/x.limit:0;
@@ -930,7 +930,7 @@ function renderWplywy(){
   let det='';
   if(selWpl){ const r=rows.filter(t=>t.g===selWpl).sort((a,b)=>a.d<b.d?1:-1);
     det=`<div class="drill"><div class="scroll"><table><tr><th>Data</th><th>Opis</th><th class="num">Kwota</th></tr>
-      ${r.map(t=>`<tr><td>${t.d}</td><td>${escH(t.o)}</td><td class="num">${fmt(t.k)}</td></tr>`).join('')}</table></div></div>`; }
+      ${r.map(t=>`<tr><td>${escH(t.d)}</td><td>${escH(t.o)}</td><td class="num">${fmt(t.k)}</td></tr>`).join('')}</table></div></div>`; }
   W.innerHTML=`<div class="scroll"><table class="cmp">${head}${body}</table></div>${det}
     <div class="muted" style="font-size:12px;margin-top:8px">Grupy z sekcji <code>_wplywy</code> w <code>kategorie.yaml</code>. Przelewy własne, odsetki i wypłaty z kont inwestycyjnych są wykluczone. Klik w grupę = lista wpływów. *śr./mc z ostatnich ${pelne.length} pełnych miesięcy.</div>`;
   W.querySelectorAll('.tagrow').forEach(el=>el.onclick=()=>{const g=dec(el.dataset.g);selWpl=(selWpl===g?null:g);renderWplywy();});

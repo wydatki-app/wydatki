@@ -246,7 +246,7 @@
       const data = wyk ? wyk[1] : mbankData(r[0]) || mbankData(r[1]);
       if (!data) continue;
       let opis, odb;
-      const lok = /Adres:\s*(.*?)\s*(?:Miasto:\s*(.*?))?\s*(?:Kraj:.*)?$/.exec(p["Lokalizacja"] || "");
+      const lok = /Adres:\s*(.*?)\s*(?:Miasto:\s*(.*?))?\s*(?:Kraj:.*)?$/.exec((p["Lokalizacja"] || "").slice(0, 300));   // limit: regex wielomianowy
       if (PKO_KARTA.test(typ) && lok) {
         const miejsce = spacje(`${lok[1] || ""} ${lok[2] || ""}`);
         opis = /^Płatność kartą/i.test(typ) ? miejsce : `${typ} ${miejsce}`;

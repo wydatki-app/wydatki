@@ -19,7 +19,9 @@ XSS_CSV = ('"Numer rachunku/karty","Data transakcji","Data rozliczenia","Rodzaj 
            '"Odbiorca/Zleceniodawca","Opis","Obciążenia","Uznania","Saldo","Waluta"\n'
            '"X","2026-10-01","2026-10-01","","","","<img id=""xss1"" src=x onerror=""window.PWNED=1"">","-12.00","","0","PLN"\n'
            '"X","2026-10-02","2026-10-02","","","","ZWROT <svg id=""xss4"" onload=""window.PWNED=4"">","","50.00","0","PLN"\n'
-           '"X","2026-10-03","2026-10-03","","","","SKLEP ZLY","-30.00","","0","PLN"\n')
+           '"X","2026-10-03","2026-10-03","","","","SKLEP ZLY","-30.00","","0","PLN"\n'
+           '"X","<b id=""xss5"">2026-10-04</b>","2026-10-04","","","","SKLEP DATA","-40.00","","0","PLN"\n'
+           '"X","2026-02-31","2026-02-31","","","","SKLEP LUTY","-5.00","","0","PLN"\n')
 XSS_YAML = ('kategorie:\n  Zle<i id="xss2">:\n    - "sklep zly"\n  Inne_nieskategoryzowane: []\n'
             '_tagi:\n  T<s id="xss3">:\n    - "sklep"\n_wplywy:\n  Zwroty:\n    - "zwrot"\n')
 
@@ -90,6 +92,36 @@ def velo_pdf():
         out += f"{i} 0 obj\n".encode() + o + b"\nendobj\n"
     return out + b"trailer\n<< /Root 1 0 R >>\n%%EOF\n"
 
+def pdf_z(obiekty):
+    out = b"%PDF-1.4\n"
+    for i, o in enumerate(obiekty, 1):
+        out += f"{i} 0 obj\n".encode() + o + b"\nendobj\n"
+    return out + b"trailer\n<< /Root 1 0 R >>\n%%EOF\n"
+
+
+def zle_pdf():
+    """Złośliwe PDF-y (DoS czytnika): bomba deflate, ogromne zakresy w fontach, cykl w drzewie stron."""
+    import zlib
+    strona = b"<< /Type /Page /Parent 2 0 R /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>"
+    font = b"<< /Type /Font /Subtype /Type0 /Encoding /Identity-H /DescendantFonts [6 0 R] /ToUnicode 7 0 R >>"
+    tresc = zlib.compress(b"BT /F1 8 Tf 10 10 Td <0001> Tj ET")
+    cmap_zakres = b"1 begincodespacerange <0000> <FFFF> endcodespacerange\n1 beginbfrange\n<0000> <FFFFFFFF> <0041>\nendbfrange"
+    def strumien(dane, flate=True):
+        return (b"<< /Length " + str(len(dane)).encode() + (b" /Filter /FlateDecode" if flate else b"")
+                + b" >>\nstream\n" + dane + b"\nendstream")
+    bomba = zlib.compress(b" " * (60 * 1024 * 1024), 9)        # ~60 KB → 60 MB po dekompresji
+    return {
+        "bomba": pdf_z([b"<< /Type /Catalog /Pages 2 0 R >>", b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>", strona,
+                        strumien(bomba), font, b"<< /Type /Font /Subtype /CIDFontType2 /DW 500 >>", strumien(cmap_zakres, False)]),
+        "zakresy": pdf_z([b"<< /Type /Catalog /Pages 2 0 R >>", b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>", strona,
+                          strumien(tresc), font, b"<< /Type /Font /Subtype /CIDFontType2 /W [1 4294967295 550] >>",
+                          strumien(cmap_zakres, False)]),
+        "cykl": pdf_z([b"<< /Type /Catalog /Pages 2 0 R >>", b"<< /Type /Pages /Kids [8 0 R 8 0 R] /Count 1 >>", strona,
+                       strumien(tresc), font, b"<< /Type /Font /Subtype /CIDFontType2 /DW 500 >>", strumien(cmap_zakres, False),
+                       b"<< /Type /Pages /Parent 2 0 R /Kids [8 0 R 8 0 R 3 0 R] /Count 1 >>"]),
+    }
+
+
 # wynik testu: Firefox → window.dump na stdout; Chromium → base64 w DOM (czytany z --dump-dom)
 WYPISZ = r"""
 function wypisz(obj) {
@@ -153,6 +185,40 @@ TEST = r"""
     ok("xss: brak <svg id=xss4> (wpływ)", !document.getElementById("xss4"));
     ok("xss: skrypt nie wykonany", !window.PWNED);
     ok("xss: opis widoczny jako tekst", app.textContent.includes('<img id="xss1"'));
+    ok("xss: brak <b id=xss5> (data)", !document.getElementById("xss5"));
+    // budżet na kategorię z „<” w nazwie: API odrzuca (TXT_RE), stan wraca, nazwa nie trafia do HTML
+    const alertOrg = window.alert; window.alert = () => {};
+    document.querySelector('#app [data-v="budzety"]')?.click(); await czekaj();
+    const bz = document.getElementById("bud-z");
+    if (bz) {
+      document.getElementById("bud-n").value = "Test"; document.getElementById("bud-l").value = "100";
+      bz.value = [...bz.options].map(o => o.value).find(v => v.startsWith("k:Zle")) || "";
+      document.getElementById("bud-add").click(); await czekaj();
+    }
+    window.alert = alertOrg;
+    ok("xss: budżet z kategorią <i> — opcja istnieje", bz && bz.value.startsWith("k:Zle"));
+    ok("xss: budżet z kategorią <i> — brak <i id=xss2>, budżet odrzucony", !document.getElementById("xss2")
+       && !document.getElementById("budzety").textContent.includes("Test"));
+    ok("data: błędne wiersze pominięte (ładunek, 31 lutego)", !app.textContent.includes("SKLEP DATA") && !app.textContent.includes("SKLEP LUTY")
+       && app.textContent.includes("Pominięte wiersze z błędną datą: x/dane/millennium/a.csv (2)"));
+    ok("data: walidator", W.model.poprawnaData("2026-10-31") && !W.model.poprawnaData("2026-02-29") && W.model.poprawnaData("2028-02-29")
+       && !W.model.poprawnaData("2026-13-01") && !W.model.poprawnaData(" 2026-10-31") && !W.model.poprawnaData(null));
+    // 2a. ReDoS: długie pola z pliku nie mogą zawiesić parsera
+    let t1 = performance.now();
+    const kwotaDl = W.model.parseAmount("1".repeat(200000) + "x");
+    const pkoDl = W.banki.pkobp('"Data operacji","Data waluty","Typ transakcji","Kwota","Waluta","Saldo po transakcji","Opis transakcji"\r\n'
+      + '"2026-10-29","2026-10-29","Płatność kartą","-1.00","PLN","+1.00","Lokalizacja: Adres: X' + " ".repeat(200000) + 'y"\r\n');
+    ok(`redos: długa kwota i lokalizacja PKO < 1 s (${Math.round(performance.now() - t1)} ms)`,
+       kwotaDl === null && pkoDl.length === 1 && performance.now() - t1 < 1000);
+    // 2b. złośliwe PDF-y: ma się skończyć szybko — wyjątkiem (pominięty plik) albo tekstem, bez zawieszenia
+    for (const [nazwa, bajty] of Object.entries(ZLE_PDF)) {
+      const t0 = performance.now();
+      let wynik;
+      try { wynik = await W.pdf.tekst(new Uint8Array(bajty)); } catch (e) { wynik = "wyjątek: " + e.message; }
+      const ms = Math.round(performance.now() - t0);
+      ok(`pdf ${nazwa}: obsłużony w ${ms} ms (< 5 s)`, ms < 5000 && wynik != null);
+      if (nazwa === "bomba") ok("pdf bomba: odrzucona limitem", String(wynik).includes("limit 50 MB"));
+    }
     // 3. magazyn: walidacja i zapis kopii w przeglądarce
     let r = await W.api("/api/tagi", {method: "POST", body: JSON.stringify({"a|b|1.0": ["<b>"]})});
     ok("api: zły tag odrzucony (400)", r.status === 400);
@@ -258,7 +324,8 @@ def uruchom(przegladarka, strona, tmp):
     else:
         cmd = [CHROMIUM, "--headless=new", "--disable-gpu", "--no-first-run", "--user-data-dir=" + os.path.join(tmp, "profil-ch"),
                "--virtual-time-budget=10000", "--dump-dom", "file://" + strona]
-    return subprocess.run(cmd, capture_output=True, text=True, timeout=180).stdout
+    # ścieżka przeglądarki z WYDATKI_CHROMIUM ustawia sam uruchamiający testy; lista argumentów, bez powłoki
+    return subprocess.run(cmd, capture_output=True, text=True, timeout=180).stdout  # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-tainted-env-args.dangerous-subprocess-use-tainted-env-args
 
 
 def wynik(out):
@@ -301,7 +368,8 @@ def main():
     # oczekiwany format = json.dump(indent=0) z serwer.py
     oczek = json.dumps({"a|b|1.0": ["Wakacje_2026", "-AI"], "x": ["T"]}, ensure_ascii=False, indent=0)
     test_js = (f"const XSS_CSV = {json.dumps(XSS_CSV)}; const XSS_YAML = {json.dumps(XSS_YAML)}; "
-               f"const OCZEK_TAGI = {json.dumps(oczek)}; const MBANK_BAJTY = {json.dumps(MBANK_BAJTY)}; const VELO_BAJTY = {json.dumps(list(velo_pdf()))}; const PKO_BAJTY = {json.dumps(PKO_BAJTY)};\n" + TEST)
+               f"const OCZEK_TAGI = {json.dumps(oczek)}; const MBANK_BAJTY = {json.dumps(MBANK_BAJTY)}; const VELO_BAJTY = {json.dumps(list(velo_pdf()))}; const PKO_BAJTY = {json.dumps(PKO_BAJTY)}; "
+               f"const ZLE_PDF = {json.dumps({k: list(v) for k, v in zle_pdf().items()})};\n" + TEST)
     zle = 0
     for p in lista:
         wyn = test(p, html, test_js)

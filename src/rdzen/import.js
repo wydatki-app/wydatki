@@ -13,14 +13,16 @@
     }
     const kol = b => W.banki.BANKI.indexOf(b);
     rozp.sort((a, b) => kol(a.bank) - kol(b.bank) || (a.sciezka < b.sciezka ? -1 : a.sciezka > b.sciezka ? 1 : 0));
-    const raport = [], zrodla = [];
+    const raport = [], zrodla = [], odrzucone = [];
     for (const p of rozp) {
-      const txs = W.banki.parsuj(p.bank, p.tekst);
-      if (txs == null) { nierozpoznane.push(p.sciezka); continue; }
+      const wszystkie = W.banki.parsuj(p.bank, p.tekst);
+      if (wszystkie == null) { nierozpoznane.push(p.sciezka); continue; }
+      const txs = wszystkie.filter(tx => W.model.poprawnaData(tx.data));   // walidacja na granicy
+      if (txs.length < wszystkie.length) odrzucone.push({ sciezka: p.sciezka, n: wszystkie.length - txs.length });
       raport.push({ sciezka: p.sciezka, bank: p.bank, n: txs.length });
       zrodla.push(txs);
     }
-    return { txs: W.model.scal(zrodla), raport, nierozpoznane };
+    return { txs: W.model.scal(zrodla), raport, nierozpoznane, odrzucone };
   }
 
   W.importuj = importuj;
