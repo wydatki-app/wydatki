@@ -23,6 +23,65 @@ XSS_CSV = ('"Numer rachunku/karty","Data transakcji","Data rozliczenia","Rodzaj 
 XSS_YAML = ('kategorie:\n  Zle<i id="xss2">:\n    - "sklep zly"\n  Inne_nieskategoryzowane: []\n'
             '_tagi:\n  T<s id="xss3">:\n    - "sklep"\n_wplywy:\n  Zwroty:\n    - "zwrot"\n')
 
+# mBank: fikcyjny wyciąg w CP1250 (jak prawdziwy eksport) — test dekodowania i parsera
+MBANK_CSV = ("mBank S.A. Bankowość Detaliczna;\r\n\r\n#Klient;\r\nJAN KOWALSKI;\r\n\r\n"
+             "#Data księgowania;#Data operacji;#Opis operacji;#Tytuł;#Nadawca/Odbiorca;#Numer konta;#Kwota;#Saldo po operacji;\r\n"
+             "2026-09-02;2026-09-02;ZAKUP PRZY UŻYCIU KARTY;\"ŻABKA Z1 /WARSZAWA     DATA TRANSAKCJI: 2026-09-01\";\"  \";'';-9,00;91,00;\r\n"
+             "2026-09-06;2026-09-06;PRZELEW WEWNĘTRZNY PRZYCHODZĄCY;\"KIESZONKOWE\";\"ANNA KOWALSKA\";'1';1 050,00;1 141,00;\r\n"
+             "2026-09-07;2026-09-07;PRZELEW WŁASNY;\"NA OSZCZĘDNOŚCI\";\"JAN KOWALSKI\";'2';-100,00;1 041,00;\r\n"
+             "\r\n;;;;;;#Saldo końcowe;1 041,00;\r\n")
+MBANK_BAJTY = list(MBANK_CSV.encode("cp1250"))
+
+
+def velo_pdf():
+    """Fikcyjny wyciąg VeloBank jak z wkhtmltopdf: font Type0/Identity-H + ToUnicode, treść FlateDecode,
+    każdy znak osobnym Td (tak jak w prawdziwych plikach). Posiadacz: JAN KOWALSKI."""
+    import zlib
+    linie = [
+        (40, "Historia rachunku"),
+        (60, "RACHUNEK PROWADZONY NA RZECZ:      JAN KOWALSKI"),
+        (100, "DATA        DATA                    KWOTA        SALDO PO"),
+        (120, "15.09.2026   16.09.2026   Operacja kartą 1111 **** **** 2222 na kwotę 12,50 PLN w ŻABKA Z1, Gdańsk, PL      -12,50 PLN      0,00"),
+        (132, "Gdańsk, PL"),
+        (144, "16.09.2026   16.09.2026   Operacja kartą 1111 **** **** 2222 na kwotę 7,00 PLN w JAN KOWALSKI-Sopot-KIOSK RUCH-616      -7,00 PLN      0,00"),
+        (156, "17.09.2026   17.09.2026   Przelew z rachunku: 00 1111,      1 200,00 PLN      0,00"),
+        (168, "Nadawca: KOWALSKI JAN,"),
+        (180, "Tytuł: spłata karty kredytowej"),
+        (200, "Dokument wygenerowany elektronicznie. VeloBank S.A. z siedzibą w Warszawie"),
+    ]
+    znaki = sorted({c for _, l in linie for c in l if c != " "})
+    cid = {c: i + 1 for i, c in enumerate(znaki)}
+    fs, sz = 8, 0.55                                  # rozmiar fontu, szerokość znaku (em)
+    tresc = ["BT", f"/F1 {fs} Tf 1 0 0 -1 0 0 Tm"]
+    for y, l in linie:
+        x0, x = 20.0, 20.0
+        tresc.append(f"1 0 0 -1 0 0 Tm {x0} {-y} Td")
+        px = x0
+        for c in l:
+            if c != " ":
+                tresc.append(f"{x - px:.4f} 0 Td <{cid[c]:04X}> Tj")
+                px = x
+            x += sz * fs
+    tresc.append("ET")
+    strumien = zlib.compress(("0.75 0 0 -0.75 0 842 cm\n" + "\n".join(tresc)).encode("latin-1"))
+    cmap = ("/CIDInit /ProcSet findresource begin 12 dict begin begincmap\n1 begincodespacerange <0000> <FFFF> endcodespacerange\n"
+            f"{len(znaki)} beginbfchar\n" + "".join(f"<{cid[c]:04X}> <{ord(c):04X}>\n" for c in znaki) +
+            "endbfchar\nendcmap CMapName currentdict /CMap defineresource pop end end").encode("latin-1")
+    obiekty = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> /MediaBox [0 0 595 842] >>",
+        b"<< /Length " + str(len(strumien)).encode() + b" /Filter /FlateDecode >>\nstream\n" + strumien + b"\nendstream",
+        b"<< /Type /Font /Subtype /Type0 /BaseFont /DejaVuSans /Encoding /Identity-H /DescendantFonts [6 0 R] /ToUnicode 7 0 R >>",
+        b"<< /Type /Font /Subtype /CIDFontType2 /BaseFont /DejaVuSans /DW 550 /W [1 [" + b" ".join(b"550" for _ in znaki) + b"]] >>",
+        b"<< /Length 8 0 R >>\nstream\n" + cmap + b"\nendstream",
+        str(len(cmap)).encode(),
+    ]
+    out = b"%PDF-1.4\n"
+    for i, o in enumerate(obiekty, 1):
+        out += f"{i} 0 obj\n".encode() + o + b"\nendobj\n"
+    return out + b"trailer\n<< /Root 1 0 R >>\n%%EOF\n"
+
 # wynik testu: Firefox → window.dump na stdout; Chromium → base64 w DOM (czytany z --dump-dom)
 WYPISZ = r"""
 function wypisz(obj) {
@@ -44,6 +103,24 @@ TEST = r"""
     await W.app.uruchom("demo", W.DEMO); await czekaj();
     ok("demo: dashboard widoczny", !document.getElementById("app").hidden && document.querySelector("#app .kpi"));
     ok("demo: 480 wydatków", document.getElementById("app").textContent.includes("Millennium: 1 pl. / 384 tr."));
+
+    // 1b. mBank: plik w CP1250 (File), dekodowanie + parser; przelew własny pominięty
+    const mb = new File([new Uint8Array(MBANK_BAJTY)], "mbank.csv");
+    await W.app.uruchom("mbank", [{sciezka: "m/dane/mbank/mbank.csv", plik: mb}]); await czekaj();
+    const mt = document.getElementById("app").textContent;
+    ok("mbank: rozpoznany, 2 operacje", mt.includes("mBank: 1 pl. / 2 tr."));
+    ok("mbank: polskie znaki po CP1250", mt.includes("ŻABKA") && !mt.includes("\ufffd"));
+
+    // 1c. VeloBank PDF: czytnik W.pdf + parser; prefiks posiadacza zdjęty, spłata karty = wpływ wykluczany regułą
+    const vp = new File([new Uint8Array(VELO_BAJTY)], "velo.pdf");
+    const vt = await W.pdf.tekst(await vp.arrayBuffer());
+    const vtx = W.banki.velo(vt);
+    ok("velo: PDF rozpoznany", W.banki.rozpoznaj(vt) === "velo");
+    ok("velo: 3 operacje, kwoty", vtx.length === 3 && vtx[0].obc === 12.5 && vtx[2].uzn === 1200);
+    ok("velo: merchant i polskie znaki", vtx[0].opis === "ŻABKA Z1, Gdańsk, PL");
+    ok("velo: prefiks posiadacza zdjęty", vtx[1].opis === "KIOSK RUCH");
+    await W.app.uruchom("velo", [{sciezka: "v/dane/velo/velo.pdf", plik: vp}]); await czekaj();
+    ok("velo: import pliku w aplikacji", document.getElementById("app").textContent.includes("VeloBank: 1 pl. / 3 tr."));
     // 2. XSS: opis transakcji, nazwa kategorii (yaml), tag z reguły, opis wpływu
     await W.app.uruchom("xss", [{sciezka: "x/dane/millennium/a.csv", tekst: XSS_CSV},
                                 {sciezka: "x/ustawienia/kategorie.yaml", tekst: XSS_YAML}]);
@@ -65,6 +142,20 @@ TEST = r"""
     ok("api: dobry tag zapisany", r.ok && (await (await W.api("/api/tagi")).json())["a|b|1.0"][0] === "Wakacje_2026");
     r = await W.api("/api/budzety", {method: "POST", body: JSON.stringify([{nazwa: "<x>", okres: "rok", limit: 1, tagi: ["a"]}])});
     ok("api: zła nazwa budżetu odrzucona", r.status === 400);
+    // 2b. przypomnienie o kopii (profil bez dostępu do folderu = Firefox/Safari)
+    const kb = document.getElementById("imp-kopia");
+    ok("kopia: baner po 1 zmianie", !kb.hidden && kb.textContent.includes("1 zmiana bez kopii"));
+    ok("kopia: 1 zmiana = jeszcze nie pilne", !kb.classList.contains("pilne"));
+    for (let i = 0; i < 9; i++) await W.api("/api/tagi", {method: "POST", body: JSON.stringify({"a|b|1.0": ["T" + i]})});
+    ok("kopia: 10 zmian = pilne", kb.classList.contains("pilne") && kb.textContent.includes("10 zmian bez kopii"));
+    W.magazyn.oznaczKopie(); await W.magazyn.poZapisie("tagi");
+    ok("kopia: po zapisaniu kopii baner znika", kb.hidden);
+    const kl = JSON.parse(localStorage.getItem(W.magazyn.klucz));
+    ok("kopia: licznik i data kopii w localStorage", kl.bezKopii === 0 && !!kl.ostatniaKopia);
+    await W.api("/api/tagi", {method: "POST", body: JSON.stringify({"a|b|1.0": ["Wakacje 2026"]})});
+    W.magazyn.pierwszaBezKopii = new Date(Date.now() - 4 * 864e5).toISOString();
+    await W.magazyn.poZapisie("tagi");
+    ok("kopia: 4 dni bez kopii = pilne", kb.classList.contains("pilne") && kb.textContent.includes("4 dn.") && !kb.textContent.includes("nigdy"));
     ok("magazyn: kopia w localStorage", W.magazyn.wczytaj("xss", {}, []) === "przegladarka");
     ok("magazyn: osobny profil demo", W.magazyn.wczytaj("demo", {}, []) === "folder");
 
@@ -78,7 +169,7 @@ TEST = r"""
       async queryPermission() { return "granted"; }, async requestPermission() { return "granted"; },
     });
     const plikH = (dir, n) => ({ kind: "file", name: n,
-      async getFile() { const f = dir[n]; return {name: n, size: f.tekst.length, lastModified: f.czas, text: async () => f.tekst}; },
+      async getFile() { const f = dir[n]; return {name: n, size: f.tekst.length, lastModified: f.czas, text: async () => f.tekst, arrayBuffer: async () => new TextEncoder().encode(f.tekst).buffer}; },
       async createWritable() { let buf = ""; return { async write(t) { buf += t; }, async close() { dir[n] = {tekst: buf, czas: Date.now()}; } }; } });
     const csvDemo = W.DEMO.find(p => p.sciezka.endsWith("millennium/demo.csv")).tekst;
 
@@ -192,7 +283,7 @@ def main():
     # oczekiwany format = json.dump(indent=0) z serwer.py
     oczek = json.dumps({"a|b|1.0": ["Wakacje_2026", "-AI"], "x": ["T"]}, ensure_ascii=False, indent=0)
     test_js = (f"const XSS_CSV = {json.dumps(XSS_CSV)}; const XSS_YAML = {json.dumps(XSS_YAML)}; "
-               f"const OCZEK_TAGI = {json.dumps(oczek)};\n" + TEST)
+               f"const OCZEK_TAGI = {json.dumps(oczek)}; const MBANK_BAJTY = {json.dumps(MBANK_BAJTY)}; const VELO_BAJTY = {json.dumps(list(velo_pdf()))};\n" + TEST)
     zle = 0
     for p in lista:
         wyn = test(p, html, test_js)

@@ -10,7 +10,8 @@ Czysty JavaScript bez bibliotek; `build.py` (Python 3, bez zależności) skleja 
 | `src/rdzen/csv.js` | parser CSV (cudzysłowy, nowe linie w polach, BOM) |
 | `src/rdzen/import.js` | rozpoznanie banku po treści, scalanie i deduplikacja |
 | `src/rdzen/magazyn.js` | ustawienia + lokalna atrapa API (walidacja zapisów), kopia w localStorage, pakiet eksportu |
-| `src/parsery/banki.js` | Millennium, Revolut (aplikacja + Account Statement), Alior |
+| `src/rdzen/pdf.js` | czytnik tekstu z PDF bez bibliotek (FlateDecode, fonty ToUnicode), układ jak `pdftotext -layout` |
+| `src/parsery/banki.js` | Millennium, VeloBank (PDF), Revolut (aplikacja + Account Statement), Alior, mBank (CSV w CP1250) |
 | `src/reguly/reguly.js` | mini-parser `kategorie.yaml`, kategorie, tagi, grupy wpływów |
 | `src/reguly/kategorie.domyslne.yaml` | reguły startowe |
 | `src/dashboard/` | dashboard (`style.css`, `uklad.html`, `dashboard.js`) |

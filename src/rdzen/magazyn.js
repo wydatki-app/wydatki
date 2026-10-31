@@ -93,10 +93,27 @@
   }
 
   // --- kopia robocza w przeglądarce (per profil: demo / nazwa folderu) ----------
+  // bezKopii / pierwszaBezKopii: ile zmian (i od kiedy) nie trafiło jeszcze do pliku kopii —
+  // podstawa ostrzeżenia w pasku (Firefox/Safari nie zapiszą same do folderu)
   function zapiszKopie() {
     M.zmieniono = new Date().toISOString();
     M.zrodlo = "przegladarka";
-    try { localStorage.setItem(M.klucz, JSON.stringify({ stan: M.stan, zmieniono: M.zmieniono })); } catch (e) { /* tryb prywatny */ }
+    M.bezKopii = (M.bezKopii || 0) + 1;
+    if (!M.pierwszaBezKopii) M.pierwszaBezKopii = M.zmieniono;
+    utrwal();
+  }
+
+  function utrwal() {
+    try {
+      localStorage.setItem(M.klucz, JSON.stringify({ stan: M.stan, zmieniono: M.zmieniono, bezKopii: M.bezKopii,
+        pierwszaBezKopii: M.pierwszaBezKopii, ostatniaKopia: M.ostatniaKopia }));
+    } catch (e) { /* tryb prywatny */ }
+  }
+
+  // pakiet pobrany → zmiany zabezpieczone (o ile użytkownik przeniesie plik do folderu)
+  function oznaczKopie() {
+    M.bezKopii = 0; M.pierwszaBezKopii = null; M.ostatniaKopia = new Date().toISOString();
+    if (M.zrodlo === "przegladarka") utrwal();
   }
 
   // pakiet z eksportu: {format, wersja, zapisano, zwroty, override, wlasne, tagi, budzety}
@@ -126,9 +143,14 @@
       M.stan = PUSTY();
       for (const k of Object.keys(PLIKI)) M.stan[k] = zPliku(k, JSON.stringify(kopia.stan[k] ?? PUSTY()[k]));
       M.zrodlo = "przegladarka"; M.zmieniono = kopia.zmieniono;
+      // kopie sprzed licznika: nowsze niż folder = co najmniej 1 zmiana bez kopii
+      M.bezKopii = typeof kopia.bezKopii === "number" ? kopia.bezKopii : 1;
+      M.pierwszaBezKopii = kopia.pierwszaBezKopii || (M.bezKopii ? kopia.zmieniono : null);
+      M.ostatniaKopia = kopia.ostatniaKopia || null;
     } else {
       M.stan = JSON.parse(JSON.stringify(M.zFolderu));
       M.zrodlo = "folder"; M.zmieniono = null;
+      M.bezKopii = 0; M.pierwszaBezKopii = null; M.ostatniaKopia = null;
     }
     return M.zrodlo;
   }
@@ -185,6 +207,7 @@
   M.zapisanoWFolderze = zapisanoWFolderze;
   M.jsonPython = jsonPython;
   M.eksport = eksport;
+  M.oznaczKopie = oznaczKopie;
   W.magazyn = M;
   W.api = api;
 })(globalThis.W = globalThis.W || {});

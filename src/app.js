@@ -12,7 +12,7 @@
   const M = W.magazyn;
   const PLIKI_USTAWIEN = new Set(["kategorie.yaml", "kategorie.yml", "konfiguracja.json", ...Object.values(M.PLIKI)]);
   const PAKIET_RE = /^wydatki-ustawienia( ?\(\d+\))?\.json$/;    // pobrany kilka razy: "… (1).json"
-  const NAZWY_BANKOW = { millennium: "Millennium", velo: "VeloBank", revolut: "Revolut", alior: "Alior" };
+  const NAZWY_BANKOW = { millennium: "Millennium", velo: "VeloBank", revolut: "Revolut", alior: "Alior", mbank: "mBank" };
   const $ = id => document.getElementById(id);
   const escH = s => String(s == null ? "" : s).replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
   const nazwaPliku = p => p.split("/").pop();
@@ -32,6 +32,13 @@
   // wpis: {sciezka, plik: File} albo {sciezka, tekst} (demo); sciezka zaczyna się od nazwy folderu.
   // Foldery "_…" i ".…" (np. _backup) są pomijane w całości. Ustawienia tylko z folderu głównego
   // albo z ustawienia/ — inaczej stara kopia z podfolderu mogłaby zostać wczytana i nadpisana.
+  // UTF-8 (z BOM lub bez), a gdy bajty nie są poprawnym UTF-8 — Windows-1250 (eksport mBank)
+  async function dekoduj(plik) {
+    const buf = await plik.arrayBuffer();
+    try { return new TextDecoder("utf-8", { fatal: true }).decode(buf); }
+    catch (e) { return new TextDecoder("windows-1250").decode(buf); }
+  }
+
   async function czytajWpisy(wpisy) {
     const dane = [], ustawienia = {}, sciezki = {}, pominiete = [], pominieteFoldery = new Set();
     const rel = wzgledne(wpisy);
@@ -44,12 +51,19 @@
       const pakiet = PAKIET_RE.test(mala);
       const miejsceUstawien = foldery.length === 0 || (foldery.length === 1 && foldery[0].toLowerCase() === "ustawienia");
       const wUstawieniach = (PLIKI_USTAWIEN.has(mala) || pakiet) && miejsceUstawien;
-      if (!wUstawieniach && !mala.endsWith(".csv")) {
-        if (mala.endsWith(".pdf")) pominiete.push(`${w.sciezka} (PDF — VeloBank wkrótce)`);
+      const pdf = !wUstawieniach && mala.endsWith(".pdf");
+      if (!wUstawieniach && !pdf && !mala.endsWith(".csv")) continue;
+      if (w.plik && w.plik.size > MAX_PLIK) { pominiete.push(`${w.sciezka} (za duży)`); continue; }
+      if (pdf) {                                            // VeloBank: tekst z PDF czytnikiem W.pdf
+        if (!w.plik) continue;
+        try {
+          const t = await W.pdf.tekst(await w.plik.arrayBuffer());
+          if (t != null) dane.push({ sciezka: w.sciezka, tekst: t });
+          else pominiete.push(`${w.sciezka} (to nie jest PDF)`);
+        } catch (e) { pominiete.push(`${w.sciezka} (PDF nieczytelny: ${e.message || e})`); }
         continue;
       }
-      if (w.plik && w.plik.size > MAX_PLIK) { pominiete.push(`${w.sciezka} (za duży)`); continue; }
-      const tekst = w.tekst != null ? w.tekst : await w.plik.text();
+      const tekst = w.tekst != null ? w.tekst : await dekoduj(w.plik);
       if (pakiet) {                                         // kilka kopii → najnowsza wg pola "zapisano"
         let z = -1;
         try { z = Date.parse(JSON.parse(tekst).zapisano) || 0; } catch (e) { z = -1; }
@@ -131,6 +145,7 @@
   // hook magazynu: po każdej udanej zmianie w dashboardzie
   async function poZapisie(nazwa) {
     const o = ostatni;
+    if (o && !o.uchwyt && o.profil !== "demo") poprosOTrwalosc();
     if (!o || !o.uchwyt) return stanZapisu();
     const plik = M.PLIKI[nazwa];
     const sciezka = o.sciezkiUstawien[plik] || `${o.profil}/ustawienia/${plik}`;
@@ -206,8 +221,47 @@
     return `<div class="imp-bar"><div><b>${profil === "demo" ? "DEMO — dane fikcyjne" : escH(profil)}</b> · ${escH(banki)}
       · reguły: ${raport.regulyZPliku ? "z folderu" : "domyślne"} · <span id="imp-zapis"></span>
       · <button class="lnk" id="imp-zmien">zmień folder</button></div>
+      <div class="imp-kopia" id="imp-kopia" role="status" hidden></div>
       <div class="imp-warn" id="imp-blad" hidden></div>
       ${ostrz.map(o => `<div class="imp-warn">${o}</div>`).join("")}</div>`;
+  }
+
+  // przypomnienie o kopii (Firefox/Safari): po tylu zmianach lub dniach baner robi się pilny
+  const PROG_ZMIAN = 10, PROG_DNI = 3;
+  const zmian = n => n === 1 ? "zmiana" : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14)) ? "zmiany" : "zmian";
+  let prosbaTrwalosc = false;
+
+  function banerKopii(o) {
+    const el = $("imp-kopia");
+    if (!el) return;
+    const n = M.bezKopii || 0;
+    if (o.uchwyt || o.profil === "demo" || M.zrodlo !== "przegladarka" || !n) { el.hidden = true; return; }
+    const od = Date.parse(M.pierwszaBezKopii) || Date.now();
+    const dni = Math.floor((Date.now() - od) / 864e5);
+    const pilne = n >= PROG_ZMIAN || dni >= PROG_DNI;
+    const kopia = M.ostatniaKopia ? new Date(M.ostatniaKopia).toLocaleString("pl-PL") : "nigdy";
+    el.hidden = false;
+    el.className = "imp-kopia" + (pilne ? " pilne" : "");
+    el.innerHTML = `${pilne ? "⚠ " : ""}<b>${n} ${zmian(n)} bez kopii</b> (od ${escH(new Date(od).toLocaleString("pl-PL"))}`
+      + `${dni >= 1 ? `, ${dni} dn.` : ""}) — są tylko w pamięci tej przeglądarki; wyczyszczenie jej danych je usunie. `
+      + `Ostatnia kopia: ${escH(kopia)}. <button class="lnk" id="imp-kopia-teraz">Zapisz kopię teraz</button> `
+      + `i przenieś plik <code>${escH(M.PAKIET)}</code> do folderu <code>${escH(o.profil)}/ustawienia/</code>.`;
+    $("imp-kopia-teraz").onclick = () => zapiszKopieUstawien(o);
+  }
+
+  function zapiszKopieUstawien(o) {
+    pobierz(M.PAKIET, M.eksport());
+    M.oznaczKopie();
+    stanZapisu();
+    alert(`Pobrano ${M.PAKIET}. Przenieś go do folderu ${o.profil}/ustawienia/ — przy następnym wczytaniu folderu ustawienia będą z pliku.`);
+  }
+
+  // pamięć przeglądarki „trwała” — przeglądarka nie usunie jej sama przy braku miejsca
+  // (nie chroni przed ręcznym wyczyszczeniem danych); prośba raz, przy pierwszej zmianie
+  function poprosOTrwalosc() {
+    if (prosbaTrwalosc) return;
+    prosbaTrwalosc = true;
+    try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); } catch (e) { /* brak API */ }
   }
 
   // stan zapisu w pasku: gdzie lądują zmiany + akcje
@@ -235,10 +289,8 @@
       synchronizuj();
     };
     const eks = $("imp-eksport");
-    if (eks) eks.onclick = () => {
-      pobierz(M.PAKIET, M.eksport());
-      alert(`Pobrano ${M.PAKIET}. Przenieś go do folderu ${o.profil}/ustawienia/ — przy następnym wczytaniu folderu ustawienia będą z pliku.`);
-    };
+    if (eks) eks.onclick = () => zapiszKopieUstawien(o);
+    banerKopii(o);
     const odrz = $("imp-odrzuc");
     if (odrz) odrz.onclick = () => {
       if (!confirm("Odrzucić zmiany zapisane w tej przeglądarce i wczytać ustawienia z folderu?")) return;
@@ -344,7 +396,9 @@
     });
     $("info-zapis").textContent = FS_API
       ? "Twoja przeglądarka zapisze zmiany (kategorie, tagi, budżety) prosto do folderu — zapyta o zgodę."
-      : "W tej przeglądarce zmiany zapisują się w jej pamięci; „zapisz kopię ustawień” tworzy plik do folderu ustawienia/.";
+      : "Ta przeglądarka (Firefox/Safari) nie zapisuje do folderu: zmiany (kategorie, tagi, budżety) są w jej pamięci. "
+        + "Co jakiś czas kliknij „zapisz kopię ustawień” i przenieś plik wydatki-ustawienia.json do folderu ustawienia/ — "
+        + "aplikacja przypomni. Zapis automatyczny do folderu: Chrome lub Edge.";
     if (location.hash === "#demo") return $("pokaz-demo").click();      // link bezpośrednio do demo
     if (FS_API) {
       const h = await ostatniFolder();

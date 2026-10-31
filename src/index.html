@@ -21,7 +21,7 @@
       <button id="btn-ostatni" class="btn pri" type="button" hidden></button>
       <button id="btn-folder" class="btn pri" type="button">Wybierz folder Wydatki</button>
       <input id="wybierz-folder" type="file" webkitdirectory multiple hidden>
-      <label class="btn">Wybierz pliki<input id="wybierz-pliki" type="file" accept=".csv,.yaml,.yml,.json" multiple hidden></label>
+      <label class="btn">Wybierz pliki<input id="wybierz-pliki" type="file" accept=".csv,.pdf,.yaml,.yml,.json" multiple hidden></label>
       <button id="pokaz-demo" class="btn" type="button">Zobacz demo</button>
     </div>
     <div class="muted">…albo przeciągnij tu folder lub pliki CSV</div>
@@ -34,8 +34,10 @@
     <pre>Wydatki/
 ├── dane/
 │   ├── millennium/   ← CSV z Millenetu (Historia transakcji)
+│   ├── velo/         ← PDF z historii rachunku lub karty
 │   ├── revolut/      ← CSV z aplikacji lub Account Statement
-│   └── alior/        ← CSV z historii karty
+│   ├── alior/        ← CSV z historii karty
+│   └── mbank/        ← CSV z historii rachunku (zestawienie operacji)
 └── ustawienia/       ← opcjonalnie: kategorie.yaml, konfiguracja.json;
                         tu też trafiają zmiany z dashboardu (tagi.json, budzety.json…)
                         albo kopia wydatki-ustawienia.json</pre>
