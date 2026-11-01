@@ -10,8 +10,14 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0             # tagi potrzebne testowi dokumentacji (wersja w stopce ≥ ostatni tag)
       - name: Budowanie
         run: python3 -I build.py
+      - name: Test prywatności (CSP bez sieci, brak API sieciowych, brak wyciągów w repo)
+        run: python3 -I testy/test_prywatnosc.py
+      - name: Test dokumentacji (banki i formaty opisane, wersja w stopce)
+        run: python3 -I testy/test_dokumentacja.py
       - name: Testy w Chrome
         run: WYDATKI_CHROMIUM="$(command -v google-chrome)" python3 -I testy/test_przegladarka.py --przegladarka chromium
       - name: Testy w Firefox

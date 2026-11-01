@@ -8,9 +8,11 @@ każdą z poniższych obietnic możesz sprawdzić samodzielnie.
 | Obietnica | Jak jest zapewniona | Jak sprawdzić |
 |---|---|---|
 | Dane nie opuszczają komputera | brak serwera; pliki czytane przez File API przeglądarki | tryb samolotowy → aplikacja działa tak samo |
-| Strona nie może nic wysłać | CSP w `<meta>`: `default-src 'none'; connect-src 'none'; form-action 'none'` | narzędzia deweloperskie → Sieć: zero żądań po wczytaniu plików |
+| Strona nie może nic wysłać | CSP w `<meta>`: `default-src 'none'; connect-src 'none'; form-action 'none'` | narzędzia deweloperskie → Sieć: zero żądań po wczytaniu plików; automatycznie: `testy/test_prywatnosc.py` (każda zmiana i każde wydanie) |
 | Nie da się wstrzyknąć skryptu | CSP dopuszcza tylko skrypty o znanych hashach SHA-256; opisy transakcji są escapowane | `testy/test_przegladarka.py` — próby XSS przez opis transakcji, nazwę kategorii, tag |
 | Żadnych zależności z zewnątrz | zero bibliotek i CDN; `build.py` przerywa budowanie, gdy znajdzie `fetch`, `XMLHttpRequest`, `http(s)://` itp. | przeszukaj `wydatki.html` — brak zewnętrznych adresów |
+| Złośliwy plik nie zawiesi aplikacji | PDF i XLSX czytane własnym kodem z limitami: 50 MB po rozpakowaniu (także gdy archiwum podaje fałszywy rozmiar), liczba wierszy i elementów; XML z `DOCTYPE`/`ENTITY` odrzucany | `testy/test_przegladarka.py` — bomby ZIP i PDF, bomba encji XML |
+| Numery kart i rachunków nie są przechowywane | parser zapisuje tylko 4 ostatnie cyfry jako źródło transakcji | `testy/test_przegladarka.py` — „pełny numer karty nie trafia do UI” |
 | Plik do pobrania = kod z repozytorium | wydanie budowane przez GitHub Actions z oznaczonej wersji (tag) | porównaj SHA-256 pliku z wartością w wydaniu (niżej) |
 
 ## Weryfikacja pobranego pliku

@@ -150,6 +150,7 @@
       const rec = { id: `${tx.data}|${opis}|${W.model.pyFloat(kwota)}`, d: tx.data, o: opis, k: kwota, c: kategoria(R, tx) };
       const at = autoTagi(R, tx);
       if (at.length) rec.at = at;
+      if (tx.zr) rec.z = tx.zr;                               // źródło (bank/karta) — poza ID transakcji
       out.push(rec);
     }
     out.sort((a, b) => (a.d < b.d ? -1 : a.d > b.d ? 1 : 0));

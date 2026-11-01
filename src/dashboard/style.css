@@ -91,6 +91,7 @@ body{margin:0;font:14px/1.5 -apple-system,BlinkMacSystemFont,"SF Pro Text","Sego
 .dot{width:10px;height:10px;border-radius:3px;flex:0 0 10px}
 .chev{color:var(--mut);text-align:center;transition:transform .15s;font-size:11px}
 .leg-row.sel .chev{transform:rotate(90deg)}
+.leg-row.zr-sub{font-size:12px}.leg-row.zr-sub .leg-name{padding-left:14px}.leg-row.zr-sub .dot{opacity:.55}
 .drill{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
 .drill-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;gap:10px;flex-wrap:wrap}
 .drill-head .t{font-weight:650}.drill-head .s{color:var(--mut);font-size:13px}

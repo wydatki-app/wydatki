@@ -17,7 +17,7 @@ SRC = os.path.join(WEB, "src")
 DIST = os.path.join(WEB, "dist")
 
 # kolejność ma znaczenie: zależności przed użyciem
-SKRYPTY = ["rdzen/model.js", "rdzen/csv.js", "rdzen/pdf.js", "parsery/banki.js", "reguly/reguly.js",
+SKRYPTY = ["rdzen/model.js", "rdzen/csv.js", "rdzen/pdf.js", "rdzen/xlsx.js", "parsery/banki.js", "reguly/reguly.js",
            "rdzen/import.js", "rdzen/magazyn.js", "dashboard/dashboard.js", "app.js"]
 MOTYW = 'try{var t=localStorage.getItem("theme");if(t)document.documentElement.dataset.theme=t}catch(e){}'
 

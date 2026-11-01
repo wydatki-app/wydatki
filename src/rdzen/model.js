@@ -39,15 +39,20 @@
   }
 
   // Scalanie źródeł z deduplikacją: pierwsze wystąpienie wygrywa (kolejność plików ma znaczenie).
+  // Powtórzenia w JEDNYM pliku to osobne transakcje (np. 2 bilety po 62 zł tego samego dnia);
+  // między plikami bierzemy max liczby wystąpień klucza, nie sumę — nakładające się wyciągi się nie dublują.
   function scal(zrodla) {
-    const seen = new Set(), txs = [];
+    const ile = new Map(), txs = [];
     for (const src of zrodla) {
+      const wPliku = new Map();
       for (const tx of src) {
         const dk = tx.dk;
         delete tx.dk;
         const key = JSON.stringify(dk || [tx.data, tx.opis, tx.odb, tx.obc, tx.uzn]);
-        if (seen.has(key)) continue;
-        seen.add(key);
+        const n = (wPliku.get(key) || 0) + 1;
+        wPliku.set(key, n);
+        if (n <= (ile.get(key) || 0)) continue;              // to wystąpienie już jest z innego pliku
+        ile.set(key, n);
         txs.push(tx);
       }
     }
@@ -64,5 +69,14 @@
     return d.getUTCMonth() === +m[2] - 1;                 // odrzuca np. 2026-02-31
   }
 
-  W.model = { parseAmount, round2, pyFloat, obetnij, mk, scal, poprawnaData };
+  // Źródło transakcji: "bank" albo "bank:k1234" / "bank:r1234" (k = karta, r = rachunek, 4 ostatnie cyfry;
+  // bez cyfr, gdy wyciąg ich nie podaje). Pełny numer nigdy nie wychodzi z parsera.
+  const ZRODLO_RE = /^(millennium|velo|revolut|alior|mbank|pkobp|bnp)(|:[kr]|:[kr]\d{4})$/;   // bez zagnieżdżonych kwantyfikatorów
+  const KONTO_RE = /^([kr]|[kr]\d{4})$/;
+  function konto(rodzaj, numer) {
+    const cyfry = String(numer || "").replace(/\D/g, "");
+    return rodzaj + (cyfry.length >= 4 ? cyfry.slice(-4) : "");
+  }
+
+  W.model = { parseAmount, round2, pyFloat, obetnij, mk, scal, poprawnaData, ZRODLO_RE, KONTO_RE, konto };
 })(globalThis.W = globalThis.W || {});

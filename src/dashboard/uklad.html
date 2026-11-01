@@ -33,6 +33,9 @@
     <div class="donut-wrap"><div id="donut"></div><div class="legend" id="legend"></div></div>
     <div id="drill"></div>
   </div>
+  <div class="card"><h2>Wg banku i karty <span class="tag" id="zr-scope"></span></h2>
+    <p class="desc">Klik = transakcje z tego banku lub karty. Własne nazwy kart: Ustawienia.</p>
+    <div class="legend" id="zrodla"></div></div>
   <div class="card"><h2>Największe transakcje <span class="tag" id="top-scope"></span></h2>
     <p class="desc">Klik ○ w wierszu = oznacz „do zwrotu” (znika z sum).</p>
     <div id="top"></div></div>
@@ -43,7 +46,7 @@
     <p class="desc">Wyszukiwanie po opisie, filtr kategorii i tagu. Zmiana kategorii w liście rozwijanej, klik w wiersz = do zwrotu.</p>
     <div class="filters">
       <input type="search" id="tx-q" placeholder="Szukaj w opisie… (np. orlen, biedronka)">
-      <select id="tx-cat"></select><select id="tx-tag"></select>
+      <select id="tx-cat"></select><select id="tx-tag"></select><select id="tx-zr"></select>
       <select id="tx-sort"><option value="d">najnowsze</option><option value="k">największe</option></select>
     </div>
     <div id="txlist"></div></div>
@@ -79,8 +82,9 @@
   <div class="card"><h2>Reguły automatyczne</h2><div id="reguly"></div></div>
   <div class="card"><h2>Kategorie</h2><div id="kategorie"></div></div>
   <div class="card"><h2>Cel FIRE i podsumowania</h2><div id="ustawienia-fire"></div></div>
+  <div class="card"><h2>Karty i rachunki</h2><div id="ustawienia-zrodla"></div></div>
 </section>
 
-<div class="foot">Źródła: wyciągi z Twojego folderu (Millennium, mBank, PKO BP, Alior, Revolut, VeloBank) · przelewy własne i spłaty kart wykluczone · gotówka po wypłacie poza systemem.</div>
+<div class="foot">Źródła: wyciągi z Twojego folderu (Millennium, mBank, PKO BP, Alior, Revolut, VeloBank, BNP Paribas) · przelewy własne i spłaty kart wykluczone · gotówka po wypłacie poza systemem.</div>
 </main>
 <div class="tip" id="tip"></div>

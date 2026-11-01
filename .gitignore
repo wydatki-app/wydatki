@@ -6,6 +6,9 @@ __pycache__/
 # NIGDY prawdziwe wyciągi ani ustawienia w repo (dozwolone tylko fikcyjne dane w demo/)
 *.csv
 *.pdf
+*.xlsx
+*.xls
+*.ods
 !demo/dane/**/*.csv
 wydatki-ustawienia*.json
 override.json

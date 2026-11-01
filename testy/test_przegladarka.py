@@ -44,6 +44,85 @@ PKO_CSV = ('"Data operacji","Data waluty","Typ transakcji","Kwota","Waluta","Sal
            '"2026-10-13","2026-10-13","Przelew podatkowy","-151.00","PLN","+90.00","Rachunek odbiorcy: 00 0000","Nazwa odbiorcy: URZĄD SKARBOWY","Adres odbiorcy: CENTRUM","Nazwa i nr identyfikatora: PESEL, 99999999999","Symbol formularza: PPE","Okres płatności: 26M09"\r\n')
 PKO_BAJTY = list(PKO_CSV.encode("cp1250"))
 
+# Revolut „Account Statement”: fikcyjne dane; ładunki w kolumnie Fees (ujemna, 1e999)
+_REV_NAGL = 'Date,Description,Category,"Money in/out",Balance,"Tax withheld","Other taxes",Fees\n'
+_REV_ZERO = '"0.00 PLN","0.00 PLN"'
+REVOLUT_CSV = ('"Current Accounts Transaction Statements",,,,,,,\n,,,,,,,\n"Personal Account (PLN)",,,,,,,\n'
+               '"Transaction statement",,,,,,,\n' + _REV_NAGL +
+               f'"Oct 1, 2026","Apple Pay top-up by *0000","Top up","500.00 PLN","600.00 PLN",{_REV_ZERO},"0.00 PLN"\n'
+               f'"Oct 2, 2026","Transfer from JAN TESTOWY",Others,"50.00 PLN","650.00 PLN",{_REV_ZERO},"0.00 PLN"\n'
+               f'"Oct 4, 2026","SKLEP OPLATA",Merchant,"-24.35 PLN","625.65 PLN",{_REV_ZERO},"0.24 PLN"\n'
+               f'"Oct 5, 2026","SKLEP UJEMNA",Merchant,"-10.00 PLN","615.65 PLN",{_REV_ZERO},"-9.00 PLN"\n'
+               f'"Oct 6, 2026","SKLEP INF",Merchant,"-5.00 PLN","610.65 PLN",{_REV_ZERO},"1e999 PLN"\n'
+               f'"Oct 28, 2026","Transfer to JAN TESTOWY",Others,"-88.63 PLN","522.02 PLN",{_REV_ZERO},"0.00 PLN"\n'
+               'Total,,,"0.00 PLN",,"0.00 PLN","0.00 PLN","0.24 PLN"\n,,,,,,,\n'
+               '"Kids & Teen (PLN)",,,,,,,\n"Transaction statement",,,,,,,\n' + _REV_NAGL +
+               f'"Oct 28, 2026","Transfer from JAN TESTOWY",Others,"88.63 PLN","88.63 PLN",{_REV_ZERO},"0.00 PLN"\n'
+               f'"Oct 29, 2026","SKLEP DZIECKO",Merchant,"-8.00 PLN","80.63 PLN",{_REV_ZERO},"0.00 PLN"\n'
+               'Total,,,"80.63 PLN",,"0.00 PLN","0.00 PLN","0.00 PLN"\n')
+
+# BNP Paribas „Zestawienie operacji”: fikcyjny XLSX (zipfile ze stdlib), daty jako liczby seryjne Excela
+BNP_NAGL = ["Data transakcji", "Data zaksięgowania", "Data odrzucenia", "Kwota", "Waluta", "Nadawca", "Odbiorca", "Opis",
+            "Produkt", "Typ transakcji", "Kwota zlecenia", "Waluta zlecenia", "Status", "Saldo po transakcji"]
+_BNP_NR = "12345678901234567890xxxxxx"
+_BNP_KARTA = ["PLN", _BNP_NR, "", None, "Mastercard Testowa\n" + _BNP_NR, "Transakcja kartą", None, "PLN", "Zrealizowana"]
+
+
+def _bnp(data, kwota, opis, saldo, odrz="", status="Zrealizowana", waluta="PLN", typ="Transakcja kartą"):
+    w = [data, data, odrz, kwota] + _BNP_KARTA + [saldo]
+    w[4], w[7], w[9], w[10], w[12] = waluta, opis, typ, kwota, status
+    return w
+
+
+def xlsx_z(wiersze, doctype=False, bomba=False):
+    import io, zipfile
+    from xml.sax.saxutils import escape
+    ss, idx, rows = [], {}, []
+    for i, w in enumerate(wiersze, 1):
+        cells = []
+        for j, v in enumerate(w):
+            ref = chr(65 + j) + str(i)
+            if isinstance(v, (int, float)):
+                cells.append(f'<c r="{ref}"><v>{v}</v></c>')
+            elif v:
+                if v not in idx:
+                    idx[v] = len(ss); ss.append(v)
+                cells.append(f'<c r="{ref}" t="s"><v>{idx[v]}</v></c>')
+        rows.append(f'<row r="{i}">{"".join(cells)}</row>')
+    ns = 'xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"'
+    sheet = f'<?xml version="1.0" encoding="UTF-8"?><worksheet {ns}><sheetData>{"".join(rows)}</sheetData></worksheet>'
+    sst = ('<?xml version="1.0" encoding="UTF-8"?>' + ('<!DOCTYPE x [<!ENTITY a "aaaa">]>' if doctype else '')
+           + f'<sst {ns}>' + "".join(f'<si><t xml:space="preserve">{escape(x)}</t></si>' for x in ss) + '</sst>')
+    b = io.BytesIO()
+    with zipfile.ZipFile(b, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("[Content_Types].xml", "<Types/>")
+        z.writestr("xl/sharedStrings.xml", sst)
+        z.writestr("xl/worksheets/sheet1.xml", sheet + (" " * (60 * 1024 * 1024) if bomba else ""))
+    return b.getvalue()
+
+
+def zaniz_rozmiar(zipb):
+    """Bomba z kłamstwem: w katalogu ZIP rozmiar po rozpakowaniu = 100 B (limit musi zadziałać w trakcie)."""
+    import struct
+    b = bytearray(zipb)
+    i = b.find(b"PK\x01\x02")
+    while i >= 0:
+        b[i + 24:i + 28] = struct.pack("<I", 100)
+        i = b.find(b"PK\x01\x02", i + 4)
+    return bytes(b)
+
+
+BNP_WIERSZE = [BNP_NAGL,
+               _bnp(46326, -21.17, "SKLEP A", 1000.5),
+               _bnp(46326, -21.17, "SKLEP A", 1021.67),                  # drugi identyczny zakup — inne saldo
+               _bnp(46325, 179, "ZWROT B", 1200),
+               _bnp(46325, -9, "ODRZUCONA", 1100, odrz=46326),
+               _bnp(46325, -8, "W TOKU", 1100, status="W realizacji"),
+               _bnp(46325, -7, "EURO", 1100, waluta="EUR"),
+               _bnp(46324, 500, "Spłata karty", 1100, typ="Spłata"),
+               _bnp(46324, -5, '<img id="xss7" src=x onerror="window.PWNED=7">', 900),
+               _bnp(46324, -3, "A & B", 890)]
+
 
 def velo_pdf():
     """Fikcyjny wyciąg VeloBank jak z wkhtmltopdf: font Type0/Identity-H + ToUnicode, treść FlateDecode,
@@ -149,6 +228,34 @@ TEST = r"""
     ok("demo: mBank i PKO BP w demo", /mBank: 1 pl\. \/ \d+ tr\./.test(dt) && /PKO BP: 1 pl\. \/ \d+ tr\./.test(dt));
     ok("demo: informacja o VeloBank (PDF)", dt.includes("VeloBank: w demo brak przykładu") && dt.includes("dane/velo/"));
 
+    // 1a. źródła: bank → karta/rachunek (Przegląd), filtr w Transakcjach, własne nazwy kart
+    const zr = document.getElementById("zrodla"), selK = '[data-zr="z:millennium:k0001"]';
+    ok("zrodla: Millennium z kartą …0001", zr && zr.textContent.includes("Millennium") && zr.textContent.includes("karta …0001") && zr.querySelector(selK));
+    ok("zrodla: pełny numer karty nie trafia do UI", !document.getElementById("app").innerHTML.includes("XXXX XXXX"));
+    zr.querySelector(selK)?.click(); await czekaj();
+    const opisy = [...document.querySelectorAll("#txlist .txrow td:nth-child(3)")];
+    ok("zrodla: klik = Transakcje z filtrem karty", document.querySelector(".view.active")?.dataset.view === "transakcje"
+       && document.getElementById("tx-zr").value === "z:millennium:k0001"
+       && opisy.length > 0 && opisy.every(td => td.title === "Millennium · karta …0001"));
+    let rz = await W.api("/api/konfiguracja", {method: "POST", body: JSON.stringify({nazwy_zrodel: {"millennium:k0001": '<img id="xss6" src=x onerror="window.PWNED=6">'}})});
+    ok("zrodla: nazwa z HTML odrzucona (400)", rz.status === 400);
+    rz = await W.api("/api/konfiguracja", {method: "POST", body: '{"nazwy_zrodel":{"__proto__":"X"}}'});
+    ok("zrodla: klucz __proto__ odrzucony (400)", rz.status === 400);
+    const alertZr = window.alert, alerty = []; window.alert = m => alerty.push(String(m));
+    document.querySelector('#app [data-v="ustawienia"]').click(); await czekaj();
+    const inpZr = document.querySelector('#ustawienia-zrodla input[data-zr="millennium:k0001"]');
+    if (inpZr) { inpZr.value = "Karta testowa"; document.getElementById("zr-zapisz").click(); await czekaj(); }
+    ok("zrodla: nazwa zapisana i widoczna w Przeglądzie", inpZr && document.getElementById("zrodla").textContent.includes("Karta testowa"));
+    const przeladujZr = W.przeladuj; W.przeladuj = () => {};   // zapis FIRE przeładowuje dashboard — tu niepotrzebne
+    document.getElementById("u-zapisz").click(); await czekaj();
+    W.przeladuj = przeladujZr;
+    const kf = await (await W.api("/api/konfiguracja")).json();
+    ok("zrodla: zapis ustawień FIRE nie kasuje nazw kart", kf.nazwy_zrodel && kf.nazwy_zrodel["millennium:k0001"] === "Karta testowa");
+    window.alert = alertZr;
+    ok("zrodla: bez komunikatów błędu przy zapisie" + (alerty.length ? ": " + alerty.join(" | ") : ""), !alerty.length);
+    localStorage.clear();                                      // profil demo bez kopii — dalsze testy magazynu
+    await czekaj();
+
     // 1b. mBank: plik w CP1250 (File), dekodowanie + parser; przelew własny pominięty
     const mb = new File([new Uint8Array(MBANK_BAJTY)], "mbank.csv");
     await W.app.uruchom("mbank", [{sciezka: "m/dane/mbank/mbank.csv", plik: mb}]); await czekaj();
@@ -160,8 +267,39 @@ TEST = r"""
     ok("pkobp: karta — data wykonania, miejsce", pkoTx[0].data === "2026-10-27" && pkoTx[0].opis === "APTEKA ŻÓŁTA GDAŃSK" && pkoTx[0].obc === 10.77);
     ok("pkobp: przelew — tytuł i nadawca", pkoTx[1].uzn === 1500 && pkoTx[1].odb === "FIRMA SP. Z O.O." && pkoTx[1].opis.includes("Wynagrodzenie"));
     ok("pkobp: PESEL nie trafia do opisu", !/99999999999/.test(pkoTx[2].text) && pkoTx[2].opis === "Przelew podatkowy PPE 26M09");
+    ok("pkobp: karta z pola Numer karty (4 cyfry)", pkoTx[0].konto === "k0000" && pkoTx[1].konto === "");
     await W.app.uruchom("pko", [{sciezka: "p/dane/pkobp/z.csv", plik: new File([new Uint8Array(PKO_BAJTY)], "z.csv")}]); await czekaj();
     ok("pkobp: import pliku w aplikacji", document.getElementById("app").textContent.includes("PKO BP: 1 pl. / 3 tr."));
+
+    // 1b'. Revolut Account Statement: przelew wychodzący (Others) = wydatek, opłata doliczona;
+    //      zasilenie i przelew przychodzący pominięte; blok konta dziecka pominięty; złe opłaty → 0
+    const revTx = W.banki.revolutStatement(REVOLUT_CSV);
+    const rev = o => revTx.find(x => x.opis === o);
+    ok("revolut: 4 operacje (bez zasilenia, wpływu z przelewu, konta dziecka)", revTx.length === 4);
+    ok("revolut: przelew do osoby = wydatek", rev("Transfer to JAN TESTOWY")?.obc === 88.63);
+    ok("revolut: opłata doliczona do wydatku", rev("SKLEP OPLATA")?.obc === 24.59 && rev("SKLEP OPLATA").dk[2] === -24.59);
+    ok("revolut: ujemna/nieliczbowa opłata z pliku ignorowana", rev("SKLEP UJEMNA")?.obc === 10 && rev("SKLEP INF")?.obc === 5);
+    ok("revolut: konto dziecka pominięte", !rev("Transfer from JAN TESTOWY") && !rev("SKLEP DZIECKO"));
+
+    // 1b''. źródło z parsera: tylko 4 ostatnie cyfry; śmieci w polu numeru = brak źródła
+    const mil = W.banki.millennium(XSS_CSV.split("\n")[0] + "\n"
+      + '"4249 XXXX XXXX 0007","2026-10-01","2026-10-01","","","","A","-1.00","","0","PLN"\n'
+      + '"PL00 1160 0000 0000 0000 0000 0009","2026-10-01","2026-10-01","","","","B","-2.00","","0","PLN"\n'
+      + '"<b>12345</b>","2026-10-01","2026-10-01","","","","C","-3.00","","0","PLN"\n');
+    ok("zrodla: Millennium karta / rachunek / śmieci", mil[0].konto === "k0007" && mil[1].konto === "r0009" && mil[2].konto === "");
+    const al = W.banki.alior("Kryteria transakcji: Okres: 01-10-2026 - 31-10-2026;Typ transakcji: Uznania/Obciążenia;Produkty: 123456******0005\n"
+      + "Data transakcji;Data księgowania;Nazwa nadawcy;Nazwa odbiorcy;Szczegóły transakcji;Kwota operacji;Waluta operacji;Kwota w walucie rachunku;Waluta rachunku;Numer rachunku nadawcy;Numer rachunku odbiorcy\n"
+      + "01-10-2026;01-10-2026;;SKLEP;ZAKUP;-5,00;PLN;-5,00;PLN;;\n");
+    ok("zrodla: Alior — karta z nagłówka Produkty", al.length === 1 && al[0].konto === "k0005");
+    const imZr = W.importuj([{sciezka: "a.csv", tekst: XSS_CSV.split("\n")[0] + "\n" + '"4249 XXXX XXXX 0007","2026-10-01","2026-10-01","","","","A","-1.00","","0","PLN"\n'}]);
+    ok("zrodla: import składa bank:karta", imZr.txs[0].zr === "millennium:k0007" && !("konto" in imZr.txs[0]));
+    // dedup: 2 identyczne zakupy w jednym pliku = 2 transakcje; nakładający się plik ich nie dubluje
+    const bilet = '"X","2026-10-30","2026-10-30","","","","KOLEO BILET","-62.00","","0","PLN"\n';
+    const nagl = XSS_CSV.split("\n")[0] + "\n";
+    const imDup = W.importuj([{sciezka: "a.csv", tekst: nagl + bilet + bilet},
+                              {sciezka: "b.csv", tekst: nagl + bilet + '"X","2026-10-31","2026-10-31","","","","INNY","-5.00","","0","PLN"\n'}]);
+    ok("dedup: 2 identyczne w pliku zostają, nakładka nie dubluje (3 tr.)", imDup.txs.length === 3
+       && imDup.txs.filter(t => t.opis === "KOLEO BILET").length === 2);
 
     // 1c. VeloBank PDF: czytnik W.pdf + parser; prefiks posiadacza zdjęty, spłata karty = wpływ wykluczany regułą
     const vp = new File([new Uint8Array(VELO_BAJTY)], "velo.pdf");
@@ -173,6 +311,30 @@ TEST = r"""
     ok("velo: prefiks posiadacza zdjęty", vtx[1].opis === "KIOSK RUCH");
     await W.app.uruchom("velo", [{sciezka: "v/dane/velo/velo.pdf", plik: vp}]); await czekaj();
     ok("velo: import pliku w aplikacji", document.getElementById("app").textContent.includes("VeloBank: 1 pl. / 3 tr."));
+
+    // 1d. BNP Paribas XLSX: czytnik W.xlsx + parser; ładunki: bomba ZIP, DOCTYPE/ENTITY, XSS w opisie
+    const bnpCsv = W.xlsx.doCsv(await W.xlsx.wiersze(new Uint8Array(BNP_BAJTY)));
+    const bnpTx = W.banki.bnp(bnpCsv);
+    ok("bnp: XLSX rozpoznany", W.banki.rozpoznaj(bnpCsv) === "bnp");
+    ok("bnp: 5 operacji (bez odrzuconej, w realizacji, EUR, spłaty)", bnpTx.length === 5);
+    ok("bnp: data seryjna Excela, karta, numer nie jako kontrahent", bnpTx[0].data === "2026-10-31" && bnpTx[0].obc === 21.17
+       && bnpTx[0].konto === "k" && bnpTx[0].odb === "");
+    ok("bnp: 2 identyczne zakupy = 2 transakcje", W.importuj([{sciezka: "b.csv", tekst: bnpCsv}]).txs.filter(t => t.opis === "SKLEP A").length === 2);
+    ok("bnp: zwrot jako wpływ, encje XML", bnpTx.some(t => t.uzn === 179) && bnpTx.some(t => t.opis === "A & B"));
+    let bladX = "";
+    try { await W.xlsx.wiersze(new Uint8Array(BNP_BOMBA)); } catch (e) { bladX = e.message; }
+    ok("xlsx bomba: odrzucona limitem", bladX.includes("limit 50 MB"));
+    bladX = "";
+    try { await W.xlsx.wiersze(new Uint8Array(BNP_BOMBA_UKRYTA), 1 << 20); } catch (e) { bladX = e.message; }   // limit 1 MB: szybko
+    ok("xlsx bomba z fałszywym rozmiarem: limit w trakcie dekompresji", bladX.includes("limit 1 MB"));
+    bladX = "";
+    try { await W.xlsx.wiersze(new Uint8Array(BNP_DOCTYPE)); } catch (e) { bladX = e.message; }
+    ok("xlsx DOCTYPE/ENTITY: odrzucony", bladX.includes("DOCTYPE"));
+    ok("xlsx: plik bez ZIP = null", (await W.xlsx.wiersze(new Uint8Array([1, 2, 3, 4, 5]))) === null);
+    await W.app.uruchom("bnp", [{sciezka: "b/dane/bnp/z.xlsx", plik: new File([new Uint8Array(BNP_BAJTY)], "z.xlsx")}]); await czekaj();
+    ok("bnp: import pliku w aplikacji", document.getElementById("app").textContent.includes("BNP Paribas: 1 pl. / 5 tr."));
+    document.querySelectorAll("#app [data-v]").forEach(el => el.click()); await czekaj();
+    ok("bnp xss: brak <img id=xss7>, skrypt nie wykonany", !document.getElementById("xss7") && !window.PWNED);
     // 2a'. ReDoS z reguł: (a+)+$ na opisie „aaaa…!” zawiesiłby kartę — reguła ma być odrzucona z komunikatem
     let t1 = performance.now();
     await W.app.uruchom("redos", [
@@ -397,14 +559,19 @@ TEST = r"""
 """
 
 
-def uruchom(przegladarka, strona, tmp):
+def _marionette():
+    # -I nie dodaje katalogu skryptu do sys.path — moduł ładowany jawnie ze ścieżki
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("marionette", os.path.join(os.path.dirname(os.path.abspath(__file__)), "marionette.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def uruchom(przegladarka, strona, tmp, czekaj_na_wynik=True):
     if przegladarka == "firefox":
-        prof = os.path.join(tmp, "profil-ff")
-        os.makedirs(prof, exist_ok=True)
-        with open(os.path.join(prof, "user.js"), "w") as f:
-            f.write('user_pref("browser.dom.window.dump.enabled", true);\n')
-        cmd = ["firefox", "--headless", "--no-remote", "--profile", prof,
-               "--screenshot", os.path.join(tmp, "x.png"), "file://" + strona]
+        # Marionette: czekamy na wynik testu, a nie na zdarzenie load (--screenshot gubił asynchroniczne testy)
+        return _marionette().uruchom_strone(strona, tmp, ZNACZNIK, czekaj_na_wynik=czekaj_na_wynik)
     else:
         cmd = [CHROMIUM, "--headless=new", "--disable-gpu", "--no-first-run", "--user-data-dir=" + (CHROMIUM_PROFIL or os.path.join(tmp, "profil-ch")),
                "--virtual-time-budget=10000", "--dump-dom", "file://" + strona]
@@ -432,7 +599,7 @@ def test(przegladarka, html, test_js):
         csp = os.path.join(tmp, "csp.html")
         with open(csp, "w", encoding="utf-8") as f:
             f.write(html.replace("</body>", f'<script>{WYPISZ}wypisz([["csp: obcy skrypt WYKONANY", false]]);</script></body>'))
-        out_csp = uruchom(przegladarka, csp, tmp)
+        out_csp = uruchom(przegladarka, csp, tmp, czekaj_na_wynik=False)
     wyn = wynik(out)
     if wyn is None:
         return [[f"brak wyniku z przeglądarki: {out[-300:]!r}", False]]
@@ -452,11 +619,19 @@ def main():
     # oczekiwany format = json.dump(indent=0) z serwer.py
     oczek = json.dumps({"a|b|1.0": ["Wakacje_2026", "-AI"], "x": ["T"]}, ensure_ascii=False, indent=0)
     test_js = (f"const XSS_CSV = {json.dumps(XSS_CSV)}; const XSS_YAML = {json.dumps(XSS_YAML)}; "
-               f"const OCZEK_TAGI = {json.dumps(oczek)}; const MBANK_BAJTY = {json.dumps(MBANK_BAJTY)}; const VELO_BAJTY = {json.dumps(list(velo_pdf()))}; const PKO_BAJTY = {json.dumps(PKO_BAJTY)}; "
+               f"const OCZEK_TAGI = {json.dumps(oczek)}; const MBANK_BAJTY = {json.dumps(MBANK_BAJTY)}; const VELO_BAJTY = {json.dumps(list(velo_pdf()))}; const PKO_BAJTY = {json.dumps(PKO_BAJTY)}; const REVOLUT_CSV = {json.dumps(REVOLUT_CSV)}; "
+               f"const BNP_BAJTY = {json.dumps(list(xlsx_z(BNP_WIERSZE)))}; const BNP_DOCTYPE = {json.dumps(list(xlsx_z(BNP_WIERSZE, doctype=True)))}; "
+               f"const BNP_BOMBA = {json.dumps(list(xlsx_z(BNP_WIERSZE[:2], bomba=True)))}; "
+               f"const BNP_BOMBA_UKRYTA = {json.dumps(list(zaniz_rozmiar(xlsx_z(BNP_WIERSZE[:2], bomba=True))))}; "
                f"const ZLE_PDF = {json.dumps({k: list(v) for k, v in zle_pdf().items()})};\n" + TEST)
     zle = 0
     for p in lista:
-        wyn = test(p, html, test_js)
+        # ponowienie TYLKO przy braku wyniku (problem uruchomienia przeglądarki) — nigdy przy niezaliczonej asercji
+        for proba in range(3):
+            wyn = test(p, html, test_js)
+            if not (len(wyn) == 1 and wyn[0][0].startswith("brak wyniku")):
+                break
+            print(f"[{p}] brak wyniku — ponawiam ({proba + 2}/3)")
         print(f"[{p}]")
         for nazwa, ok in wyn:
             print(f"  {'✓' if ok else '✗'} {nazwa}")

@@ -105,6 +105,25 @@
         if (zla) { if (scisle) throw new Error(`Niedozwolona nazwa tagu: ${zla}`); continue; }
         out[n] = lst;
       }
+      // własne nazwy kart/rachunków: {"millennium:k1234": "Karta syna"}; klucz z allowlisty formatu
+      // (odrzuca też "__proto__"), nazwa jak kategorie — bez znaków HTML
+      if (k.nazwy_zrodel !== undefined) {
+        const m = k.nazwy_zrodel;
+        if (!jestObiekt(m) || Object.keys(m).length > 100) {
+          if (scisle) throw new Error("nazwy_zrodel: mapa {źródło: nazwa} (max 100).");
+        } else {
+          const clean = {};
+          for (const [z, v] of Object.entries(m)) {
+            const n = typeof v === "string" ? v.trim() : "";
+            if (!W.model.ZRODLO_RE.test(z) || !NAZWA_RE.test(n)) {
+              if (scisle) throw new Error(`Niedozwolona nazwa karty/rachunku: ${String(v).slice(0, 40)}`);
+              continue;
+            }
+            clean[z] = n;
+          }
+          if (Object.keys(clean).length) out.nazwy_zrodel = clean;
+        }
+      }
       return out;
     },
     // reguły dodane w aplikacji: [{wzorzec, kategoria}] — wzorzec jak w kategorie.yaml (regex, bez ReDoS)

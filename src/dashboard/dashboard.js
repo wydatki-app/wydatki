@@ -118,6 +118,31 @@ const odWzorca=w=>String(w||'').replace(/\\s\+/g,' ').replace(/\\(.)/g,'$1');
 const testerWzorca=wz=>{ try{ const rx=new RegExp(wz.replace(/\(\?P</g,'(?<'),'i'); return t=>rx.test(t.o); }catch(e){ return null; } };
 async function loadReguly(){ try{ const r=await wApi('/api/reguly-wlasne'); if(r.ok) reguly=await r.json(); }catch(e){ console.warn(e.message); } }
 async function loadKonf(){ try{ const r=await wApi('/api/konfiguracja'); if(r.ok) konf=await r.json(); }catch(e){ console.warn(e.message); } }
+
+// --- ŹRÓDŁA: bank → karta/rachunek (t.z = "bank" | "bank:k1234" | "bank:r1234", z importu) ---
+const BANK_N={millennium:'Millennium',velo:'VeloBank',revolut:'Revolut',alior:'Alior',mbank:'mBank',pkobp:'PKO BP',bnp:'BNP Paribas'};
+const BANK_ORDER=Object.keys(BANK_N);
+const ZR_OK=globalThis.W.model.ZRODLO_RE;
+// budowa DOM bez innerHTML: teksty jako węzły tekstowe, atrybuty przez właściwości/setAttribute
+function h(tag,props,...kids){
+  const e=document.createElement(tag);
+  for(const [k,v] of Object.entries(props||{})){
+    if(k==='class') e.className=v; else if(k==='style') e.style.cssText=v;
+    else if(k.startsWith('data-')) e.setAttribute(k,v); else e[k]=v;
+  }
+  for(const c of kids.flat()) if(c!=null&&c!==false) e.append(c);
+  return e;
+}
+const zrOf=t=>ZR_OK.test(t.z||'')?t.z:'';
+const zrBank=z=>z?z.split(':')[0]:'';
+const nazwyZr=()=>konf.nazwy_zrodel||{};
+const bankNazwa=b=>BANK_N[b]||'nieznane';
+function zrDomyslna(z){ const k=z.split(':')[1]; if(!k) return 'bez numeru karty / rachunku'; const typ=k[0]==='k'?'karta':'rachunek'; return k.length>1?`${typ} …${k.slice(1)}`:typ; }
+const zrNazwa=z=>nazwyZr()[z]||zrDomyslna(z);
+function zrPelna(z){ if(!z) return 'źródło nieznane'; const n=nazwyZr()[z]||(z.includes(':')?zrDomyslna(z):''); return bankNazwa(zrBank(z))+(n?' · '+n:''); }
+const zrKolor=b=>PAL[Math.max(0,BANK_ORDER.indexOf(b))%PAL.length];
+const zrPasuje=(t,f)=>!f||(f.startsWith('b:')?zrBank(zrOf(t))===f.slice(2):zrOf(t)===f.slice(2));
+const zrPokazSub=zs=>zs.length>1||zs.some(z=>z.includes(':'));   // bank z jednym źródłem bez numeru = bez podwierszy
 async function zapiszUst(url, dane, co){
   const r=await wApi(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(dane)});
   const j=await r.json().catch(()=>({}));
@@ -478,9 +503,16 @@ function renderMonthsChart(){
 }
 
 // --- transakcje: wyszukiwarka ---
-let txf={q:'',cat:'',tag:'',sort:'d'};
+let txf={q:'',cat:'',tag:'',sort:'d',zr:''};
 function renderTxList(){
   const sc=document.getElementById('tx-cat'), st=document.getElementById('tx-tag'), so=document.getElementById('tx-sort'), q=document.getElementById('tx-q');
+  const sz=document.getElementById('tx-zr'), zs=[...new Set(DATA.out.map(zrOf))];
+  const bs=[...new Set(zs.map(zrBank))].sort((a,b)=>BANK_ORDER.indexOf(a)-BANK_ORDER.indexOf(b));
+  sz.replaceChildren(h('option',{value:''},'Wszystkie banki i karty'), ...bs.map(b=>{ const sub=zs.filter(z=>zrBank(z)===b).sort();
+    return [h('option',{value:'b:'+b},bankNazwa(b)),
+      ...(zrPokazSub(sub)?sub.map(z=>h('option',{value:'z:'+z},'\u00a0\u00a0└ '+zrNazwa(z))):[])]; }).flat());
+  if(![...sz.options].some(o=>o.value===txf.zr)) txf.zr='';
+  sz.value=txf.zr; sz.onchange=()=>{txf.zr=sz.value;renderTxTable();};
   sc.innerHTML='<option value="">Wszystkie kategorie</option>'+catList().map(c=>`<option value="${escH(c)}">${escH(c.replace(/_/g,' '))}</option>`).join('');
   st.innerHTML='<option value="">Wszystkie tagi</option><option value="__brak">bez tagu</option>'+allTags().map(g=>`<option value="${escH(g)}">🔖 ${escH(g.replace(/_/g,' '))}</option>`).join('');
   sc.value=txf.cat; st.value=txf.tag; so.value=txf.sort; if(q.value!==txf.q) q.value=txf.q;
@@ -490,7 +522,7 @@ function renderTxList(){
 }
 function renderTxTable(){
   const ql=txf.q.trim().toLowerCase();
-  let rows=DATA.out.filter(t=>inPeriod(t) && (!ql||t.o.toLowerCase().includes(ql)) && (!txf.cat||effCat(t)===txf.cat)
+  let rows=DATA.out.filter(t=>inPeriod(t) && zrPasuje(t,txf.zr) && (!ql||t.o.toLowerCase().includes(ql)) && (!txf.cat||effCat(t)===txf.cat)
     && (!txf.tag || (txf.tag==='__brak' ? !tagsOf(t).length : tagsOf(t).includes(txf.tag))));
   rows.sort(txf.sort==='k'?(a,b)=>b.k-a.k:(a,b)=>a.d<b.d?1:(a.d>b.d?-1:b.k-a.k));
   const sum=sumK(rows.filter(t=>!isRefund(t))), LIM=400;
@@ -538,6 +570,38 @@ function renderDonut(){
   document.querySelectorAll('#donut path').forEach(el=>el.onclick=pick);
 }
 
+// Przegląd: wydatki wg banku → karty/rachunku; klik = Transakcje z filtrem tego źródła
+function renderZrodla(){
+  const E=document.getElementById('zrodla'); if(!E) return;
+  document.getElementById('zr-scope').textContent=period==='all'?'cały okres':mLong(period);
+  const rows=outRows(), total=sumK(rows), B={};
+  for(const t of rows){ const z=zrOf(t), x=B[zrBank(z)]=B[zrBank(z)]||{s:0,zr:{}}; x.s+=t.k; x.zr[z]=(x.zr[z]||0)+t.k; }
+  // Δ vs średnia z poprzednich pełnych miesięcy (pro rata dla bieżącego) — jak w kategoriach
+  let base=null;
+  if(period!=='all'){ const bm=prevFull(period,CFG.n), f=monthFrac(period);
+    if(bm.length){ base={}; DATA.out.forEach(t=>{ if(isRefund(t)||!bm.includes(t.d.slice(0,7))) return;
+      const z=zrOf(t), v=t.k/bm.length*f; base['b:'+zrBank(z)]=(base['b:'+zrBank(z)]||0)+v; base['z:'+z]=(base['z:'+z]||0)+v; }); } }
+  const dcell=(key,v)=>{ if(!base) return h('span',{class:'leg-d'}); const b0=base[key]||0, d=v-b0;
+    if(Math.abs(d)<Math.max(b0*.1,20)) return h('span',{class:'leg-d flat'},'≈');
+    return h('span',{class:'leg-d '+(d>0?'up':'down'),title:`średnio ${fmt0(b0)} zł`},(d>0?'+':'−')+fmt0(Math.abs(d))); };
+  const mx=Math.max(1,...Object.values(B).map(x=>x.s));
+  const row=(key,label,v,kolor,sub)=>{
+    const el=h('div',{class:'leg-row'+(sub?' zr-sub':'')+(txf.zr===key?' sel':''),'data-zr':key,title:'Klik = transakcje z tego źródła'},
+      h('span',{class:'chev'},sub?'':'▸'), h('span',{class:'dot',style:`background:${kolor}`}),
+      h('span',{class:'leg-name'},label,h('div',{class:'mb'},h('i',{style:`width:${(100*v/mx).toFixed(1)}%;background:${kolor}`}))),
+      h('span',{class:'leg-val'},fmt(v)+' zł'), dcell(key,v),
+      h('span',{class:'leg-pct'},(total?Math.round(100*v/total):0)+'%'));
+    el.onclick=()=>{ txf.zr=key; setView('transakcje'); renderTxList(); scrollTo(0,0); };
+    return el;
+  };
+  const banki=Object.entries(B).sort((a,b)=>b[1].s-a[1].s);
+  E.replaceChildren(...(banki.length?banki.map(([b,x])=>{
+    const zr=Object.entries(x.zr).sort((p,q)=>q[1]-p[1]);
+    return [row('b:'+b,bankNazwa(b),x.s,zrKolor(b),false),
+      ...(zrPokazSub(zr.map(([z])=>z))?zr.map(([z,v])=>row('z:'+z,zrNazwa(z),v,zrKolor(b),true)):[])];
+  }).flat():[h('div',{class:'muted'},'Brak wydatków w tym okresie.')]));
+}
+
 // lista kategorii do dropdownu (z reguł + własne + ewentualne z override)
 // alfabetycznie (polskie znaki), „Inne nieskategoryzowane" zawsze na końcu
 const INNE='Inne_nieskategoryzowane';
@@ -560,7 +624,7 @@ function txRow(t){
   const r=isRefund(t);
   return `<tr class="txrow ${r?'refunded':''}" data-id="${enc(t.id)}">
     <td class="chk" title="Klik = oznacz do zwrotu">${r?'↩︎':'○'}</td>
-    <td>${escH(t.d)}</td><td>${escH(t.o)}</td><td class="catcell">${catSelect(t)}</td>
+    <td>${escH(t.d)}</td><td title="${escH(zrPelna(zrOf(t)))}">${escH(t.o)}</td><td class="catcell">${catSelect(t)}</td>
     <td class="tagcell">${tagsOf(t).map(g=>isAutoTag(t,g)
       ? `<span class="ttag auto" data-tag="${enc(g)}" title="Tag z reguły — klik = wyłącz dla tej transakcji">${escH(g.replace(/_/g,' '))}</span>`
       : `<span class="ttag" data-tag="${enc(g)}" title="Klik = zdejmij tag">${escH(g.replace(/_/g,' '))}</span>`).join('')}<span class="tagadd" title="Dodaj tag">+🔖</span></td>
@@ -824,11 +888,36 @@ function renderUstawienia(){
     <button class="tab" id="u-zapisz">💾 Zapisz ustawienia</button>`;
   document.getElementById('u-zapisz').onclick=async()=>{
     const val=id=>document.getElementById(id).value.trim(), lista=id=>val(id).split(',').map(x=>x.trim()).filter(Boolean);
-    const k={}, liczba=(id,klucz,mn=1)=>{ if(val(id)!=='') k[klucz]=Number(val(id))*mn; };
+    const k=konf.nazwy_zrodel?{nazwy_zrodel:konf.nazwy_zrodel}:{};   // nazwy kart zapisuje osobny formularz
+    const liczba=(id,klucz,mn=1)=>{ if(val(id)!=='') k[klucz]=Number(val(id))*mn; };
     liczba('u-cel','fire_cel_mc'); liczba('u-swr','fire_swr',0.01); liczba('u-jedn','prog_jednorazowych'); liczba('u-n','miesiecy_podsumowania');
     if(k.fire_swr!==undefined) k.fire_swr=Math.round(k.fire_swr*10000)/10000;
     k.tagi_dzieci=lista('u-dzieci'); k.tagi_wydarzen=lista('u-wyd');
     if(await zapiszUst('/api/konfiguracja',k,'ustawienia')){ konf=k; wPrzeladuj(); }
+  };
+}
+
+// KARTY I RACHUNKI — własne nazwy źródeł (konfiguracja.json → nazwy_zrodel)
+function renderUstZrodla(){
+  const E=document.getElementById('ustawienia-zrodla'); if(!E) return;
+  const zs=[...new Set(DATA.out.map(zrOf))].filter(z=>z.includes(':'))
+    .sort((a,b)=>BANK_ORDER.indexOf(zrBank(a))-BANK_ORDER.indexOf(zrBank(b))||(a<b?-1:a>b?1:0));
+  if(!zs.length){ E.replaceChildren(h('div',{class:'muted'},'Wyciągi nie podają numerów kart ani rachunków.')); return; }
+  const N=nazwyZr();
+  const pola=zs.map(z=>h('input',{'data-zr':z,maxLength:40,value:N[z]||'',placeholder:zrDomyslna(z)}));
+  const btn=h('button',{class:'tab',id:'zr-zapisz'},'💾 Zapisz nazwy');
+  E.replaceChildren(
+    h('div',{class:'muted',style:'font-size:12px'},'Własna nazwa zamiast numeru (np. „Karta syna”). Puste pole = numer. Widać ją w Przeglądzie i w filtrze Transakcji.'),
+    h('div',{class:'form-ust'},zs.map((z,i)=>h('label',{},bankNazwa(zrBank(z))+' · '+zrDomyslna(z),pola[i]))), btn);
+  btn.onclick=async()=>{
+    const m={};
+    for(const inp of pola){
+      const v=inp.value.trim(); if(!v) continue;
+      if(!NAZWA_OK.test(v)){ alert('Niedozwolona nazwa: '+v+'\nDozwolone: litery, cyfry, spacja i ( ) + & . / _ -'); return; }
+      m[inp.dataset.zr]=v;
+    }
+    const k=Object.assign({},konf,{nazwy_zrodel:m});
+    if(await zapiszUst('/api/konfiguracja',k,'nazwy kart')){ konf=k; renderAll(); }
   };
 }
 
@@ -1040,7 +1129,7 @@ function renderWplywy(){
   W.querySelectorAll('.tagrow').forEach(el=>el.onclick=()=>{const g=dec(el.dataset.g);selWpl=(selWpl===g?null:g);renderWplywy();});
 }
 
-function renderAll(){renderTabs();renderKpis();renderFire();renderPace();renderBudzety();renderDonut();renderDrill();renderWeeks();renderTop();renderTxList();renderRefunds();renderMonthsChart();renderCompare();renderWplywy();renderSubs();renderTagi();renderKategorie();renderReguly();renderUstawienia();}
+function renderAll(){renderTabs();renderKpis();renderFire();renderPace();renderBudzety();renderDonut();renderZrodla();renderDrill();renderWeeks();renderTop();renderTxList();renderRefunds();renderMonthsChart();renderCompare();renderWplywy();renderSubs();renderTagi();renderKategorie();renderReguly();renderUstawienia();renderUstZrodla();}
 
 async function przelicz(){
   const b=document.getElementById('btn-przelicz'); if(b){b.disabled=true;b.textContent='Przeliczam…';}

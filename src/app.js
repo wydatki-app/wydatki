@@ -12,7 +12,7 @@
   const M = W.magazyn;
   const PLIKI_USTAWIEN = new Set(["kategorie.yaml", "kategorie.yml", "konfiguracja.json", ...Object.values(M.PLIKI)]);
   const PAKIET_RE = /^wydatki-ustawienia( ?\(\d+\))?\.json$/;    // pobrany kilka razy: "… (1).json"
-  const NAZWY_BANKOW = { millennium: "Millennium", velo: "VeloBank", revolut: "Revolut", alior: "Alior", mbank: "mBank", pkobp: "PKO BP" };
+  const NAZWY_BANKOW = { millennium: "Millennium", velo: "VeloBank", revolut: "Revolut", alior: "Alior", mbank: "mBank", pkobp: "PKO BP", bnp: "BNP Paribas" };
   const $ = id => document.getElementById(id);
   const escH = s => String(s == null ? "" : s).replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
   const nazwaPliku = p => p.split("/").pop();
@@ -52,7 +52,8 @@
       const miejsceUstawien = foldery.length === 0 || (foldery.length === 1 && foldery[0].toLowerCase() === "ustawienia");
       const wUstawieniach = (PLIKI_USTAWIEN.has(mala) || pakiet) && miejsceUstawien;
       const pdf = !wUstawieniach && mala.endsWith(".pdf");
-      if (!wUstawieniach && !pdf && !mala.endsWith(".csv")) continue;
+      const xlsx = !wUstawieniach && mala.endsWith(".xlsx");
+      if (!wUstawieniach && !pdf && !xlsx && !mala.endsWith(".csv")) continue;
       if (w.plik && w.plik.size > MAX_PLIK) { pominiete.push(`${w.sciezka} (za duży)`); continue; }
       if (pdf) {                                            // VeloBank: tekst z PDF czytnikiem W.pdf
         if (!w.plik) continue;
@@ -61,6 +62,15 @@
           if (t != null) dane.push({ sciezka: w.sciezka, tekst: t });
           else pominiete.push(`${w.sciezka} (to nie jest PDF)`);
         } catch (e) { pominiete.push(`${w.sciezka} (PDF nieczytelny: ${e.message || e})`); }
+        continue;
+      }
+      if (xlsx) {                                           // BNP Paribas: arkusz → CSV czytnikiem W.xlsx
+        if (!w.plik) continue;
+        try {
+          const rows = await W.xlsx.wiersze(await w.plik.arrayBuffer());
+          if (rows) dane.push({ sciezka: w.sciezka, tekst: W.xlsx.doCsv(rows) });
+          else pominiete.push(`${w.sciezka} (to nie jest arkusz XLSX)`);
+        } catch (e) { pominiete.push(`${w.sciezka} (XLSX nieczytelny: ${e.message || e})`); }
         continue;
       }
       const tekst = w.tekst != null ? w.tekst : await dekoduj(w.plik);

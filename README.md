@@ -6,7 +6,7 @@
 
 *Cały proces w 25 sekundach (dane fikcyjne). Krok po kroku — kolejność reguł, warstwy kosztu życia, gdzie zapisują się zmiany: [jak to działa](https://wydatki-app.github.io/wydatki/jak-to-dziala.html).*
 
-Wrzucasz wyciągi z banku (CSV lub PDF), dostajesz automatyczne kategorie, budżety, trendy
+Wrzucasz wyciągi z banku (CSV, PDF lub XLSX), dostajesz automatyczne kategorie, budżety, trendy
 i odpowiedź na pytanie „ile naprawdę wydaję co miesiąc” — także w przeliczeniu na kapitał potrzebny do FIRE.
 
 Cała aplikacja to **jeden plik HTML**, który działa w Twojej przeglądarce. Bez instalacji, bez konta, bez serwera.
@@ -16,7 +16,7 @@ Cała aplikacja to **jeden plik HTML**, który działa w Twojej przeglądarce. B
 ## Jak zacząć (2 minuty)
 
 1. Pobierz [`wydatki.html`](https://github.com/wydatki-app/wydatki/releases/latest/download/wydatki.html) i zapisz go np. w folderze `Wydatki/`.
-2. Pobierz historię transakcji z banku (CSV) do `Wydatki/dane/`:
+2. Pobierz historię transakcji z banku do `Wydatki/dane/`:
    ```
    Wydatki/
    ├── wydatki.html
@@ -26,7 +26,8 @@ Cała aplikacja to **jeden plik HTML**, który działa w Twojej przeglądarce. B
    │   ├── revolut/      ← aplikacja: wyciąg CSV albo Account Statement
    │   ├── alior/        ← historia karty → CSV
    │   ├── mbank/        ← historia rachunku → CSV
-   │   └── pkobp/        ← historia rachunku → CSV
+   │   ├── pkobp/        ← historia rachunku → CSV
+   │   └── bnp/          ← GOonline: Zestawienie operacji → XLSX
    └── ustawienia/       ← tu trafią Twoje kategorie, tagi i budżety
    ```
 3. Otwórz `wydatki.html` (dwuklik) → **Wybierz folder Wydatki**.
@@ -37,18 +38,21 @@ Bank jest rozpoznawany po treści pliku — podfoldery służą tylko porządkow
 
 | Funkcja | Opis |
 |---|---|
-| Import | Millennium, VeloBank (PDF), Revolut (2 formaty), Alior, mBank, PKO BP; scalanie i usuwanie duplikatów z wielu eksportów |
+| Import | Millennium, VeloBank (PDF), Revolut (2 formaty), Alior, mBank, PKO BP, BNP Paribas (XLSX); scalanie i usuwanie duplikatów z wielu eksportów |
+| Banki i karty | wydatki wg banku → karty/rachunku (tylko 4 ostatnie cyfry), zmiana do średniej; klik = transakcje z tego źródła; własne nazwy kart, np. „Karta syna” |
 | Kategorie | automatyczne z reguł (`kategorie.yaml`), ręczna korekta jednym kliknięciem, własne kategorie |
 | Tagi | „Wakacje 2026”, „Dzieci”, „Prezenty” — koszt wyjazdu czy hobby w poprzek kategorii |
 | Budżety | miesięczne i roczne, po kategoriach lub tagach, z wyjątkami na konkretne miesiące |
 | Koszt życia | razem → bez podróży → bez dzieci/rodziny → bez jednorazowych = koszt bieżący |
 | FIRE | koszt życia przeliczony na kapitał przy stopie wypłaty 4% |
 | Trendy | miesiąc do miesiąca, tempo wydatków w miesiącu, drill-down do transakcji |
+| Wyszukiwanie | transakcje po opisie, kategorii, tagu oraz banku lub karcie |
 
 ## Bezpieczeństwo
 
 - Pliki są czytane **lokalnie** w przeglądarce — nigdzie nie są wysyłane.
 - Strona ma politykę CSP `connect-src 'none'`: **przeglądarka blokuje każde połączenie sieciowe** z tej strony.
+- Każda zmiana w kodzie przechodzi automatyczny test prywatności: CSP bez sieci, brak funkcji sieciowych i adresów zewnętrznych w gotowym pliku.
 - Sprawdź sam: wyłącz internet (tryb samolotowy) i wczytaj pliki — działa tak samo.
 - Przeglądarka pamięta Twoje ustawienia (kategorie, tagi, budżety, zwroty) i ostatni folder, a nie całe wyciągi. Ustawienia zawierają jednak opisy poprawionych transakcji (data, opis, kwota). Na komputerze współdzielonym kliknij **„wyczyść dane z przeglądarki”** (pasek u góry albo ekran startowy). Pliki w folderze zostają, a jeśli masz zmiany bez kopii, aplikacja ostrzeże przed ich utratą.
 - Każde wydanie jest budowane przez GitHub Actions z kodu w tym repozytorium; obok pliku jest suma SHA-256.
@@ -65,7 +69,7 @@ Szczegóły i jak to zweryfikować: [BEZPIECZENSTWO.md](BEZPIECZENSTWO.md).
 
 ## Ograniczenia
 
-- Obsługiwane banki: Millennium, VeloBank (PDF), Revolut, Alior, mBank, PKO BP. Inny bank? [Zgłoś](https://github.com/wydatki-app/wydatki/issues/new?template=prosba-o-bank.yml).
+- Obsługiwane banki: Millennium, VeloBank (PDF), Revolut, Alior, mBank, PKO BP, BNP Paribas (XLSX, pierwszy arkusz, operacje w PLN). Inny bank? [Zgłoś](https://github.com/wydatki-app/wydatki/issues/new?template=prosba-o-bank.yml).
 - **Zapis zmian:** Chrome/Edge zapisują kategorie, tagi i budżety prosto do folderu. Firefox/Safari trzymają je w pamięci przeglądarki — używaj „zapisz kopię ustawień” i przenoś `wydatki-ustawienia.json` do `ustawienia/` (pasek przypomina po 10 zmianach lub 3 dniach bez kopii). Wyczyszczenie danych przeglądarki bez kopii = utrata ręcznych zmian; wyciągi bankowe są bezpieczne.
 - Chrome/Edge nie widzą plików z dwukropkiem „:” w nazwie (np. `shared-text-2026-10-01 11:39:03.csv` z telefonu) — zmień nazwę pliku.
 - Projekt hobbystyczny, non-profit, **bez gwarancji i bez wsparcia technicznego**.

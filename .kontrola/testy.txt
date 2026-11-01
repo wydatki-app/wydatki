@@ -1,0 +1,10 @@
+# Obowiązkowe testy przed pushem (uruchamia kontrola.py, także w hooku pre-push).
+# Jedno polecenie w linii, bez powłoki, w katalogu repo; każde musi zwrócić kod 0.
+# 1. świeży build — testy sprawdzają artefakt dla użytkownika (dist/), nie szablon
+python3 -I build.py
+# 2. prywatność: CSP bez sieci, brak API sieciowych i adresów zewnętrznych, brak wyciągów w repo
+python3 -I testy/test_prywatnosc.py
+# 2b. dokumentacja zgodna z kodem: każdy bank i format opisany (README, Jak to działa, pomoc w aplikacji)
+python3 -I testy/test_dokumentacja.py
+# 3. przeglądarka: parsery, XSS, bomby ZIP/PDF, ReDoS, CSP (Firefox przez Marionette)
+python3 -I testy/test_przegladarka.py --przegladarka firefox
