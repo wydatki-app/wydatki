@@ -26,7 +26,7 @@
       budzet.zostalo -= value.length;
       if (budzet.zostalo < 0) {
         await czytnik.cancel().catch(() => {});
-        throw new Error("PDF: dane po dekompresji przekraczają limit 50 MB");
+        throw new Error(W.t("err.pdf1"));
       }
       kawalki.push(value);
     }
@@ -338,7 +338,7 @@
     const u8 = bufor instanceof Uint8Array ? bufor : new Uint8Array(bufor);
     const s = latin1(u8);
     if (!s.startsWith("%PDF-")) return null;
-    if (/\/Encrypt\b/.test(s)) throw new Error("PDF zaszyfrowany — nieobsługiwany");
+    if (/\/Encrypt\b/.test(s)) throw new Error(W.t("err.pdf2"));
     const obj = obiekty(u8, s);
     obj.budzet = { zostalo: MAX_ROZPAK };
     const out = [];

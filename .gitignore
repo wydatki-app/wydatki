@@ -9,7 +9,13 @@ __pycache__/
 *.xlsx
 *.xls
 *.ods
+*.ofx
+*.qfx
+*.qif
 !demo/dane/**/*.csv
+!demo/dane/velo/demo.pdf
+!demo/dane/bnp/demo.xlsx
+!demo/en/dane/ofx/demo.ofx
 wydatki-ustawienia*.json
 override.json
 tagi.json

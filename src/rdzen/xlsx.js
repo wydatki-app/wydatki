@@ -25,7 +25,7 @@
       budzet.zostalo -= value.length;
       if (budzet.zostalo < 0) {
         await czytnik.cancel().catch(() => {});
-        throw new Error(`XLSX: dane po dekompresji przekraczają limit ${budzet.mb} MB`);
+        throw new Error(W.t("err.xlsx1", { p1: budzet.mb }));
       }
       kawalki.push(value);
     }
@@ -42,17 +42,17 @@
     for (let i = u8.length - 22; i >= Math.max(0, u8.length - 22 - 65535); i--) {
       if (u32(dv, i) === 0x06054b50) { eocd = i; break; }
     }
-    if (eocd < 0) throw new Error("XLSX: uszkodzony ZIP (brak katalogu)");
+    if (eocd < 0) throw new Error(W.t("err.xlsx2"));
     const ile = u16(dv, eocd + 10), cdOff = u32(dv, eocd + 16);
-    if (ile > MAX_WPISOW) throw new Error("XLSX: za dużo plików w archiwum");
+    if (ile > MAX_WPISOW) throw new Error(W.t("err.xlsx3"));
     const wpisy = new Map();
     let p = cdOff;
     for (let k = 0; k < ile; k++) {
-      if (p + 46 > u8.length || u32(dv, p) !== 0x02014b50) throw new Error("XLSX: uszkodzony katalog ZIP");
+      if (p + 46 > u8.length || u32(dv, p) !== 0x02014b50) throw new Error(W.t("err.xlsx4"));
       const flagi = u16(dv, p + 8), metoda = u16(dv, p + 10), spak = u32(dv, p + 20), rozpak = u32(dv, p + 24);
       const nN = u16(dv, p + 28), nE = u16(dv, p + 30), nK = u16(dv, p + 32), lokalny = u32(dv, p + 42);
-      if (flagi & 1) throw new Error("XLSX: plik zaszyfrowany");
-      if (spak === 0xffffffff || rozpak === 0xffffffff || lokalny === 0xffffffff) throw new Error("XLSX: ZIP64 nieobsługiwany");
+      if (flagi & 1) throw new Error(W.t("err.xlsx5"));
+      if (spak === 0xffffffff || rozpak === 0xffffffff || lokalny === 0xffffffff) throw new Error(W.t("err.xlsx6"));
       const nazwa = new TextDecoder("utf-8").decode(u8.subarray(p + 46, p + 46 + nN));
       wpisy.set(nazwa, { metoda, spak, rozpak, lokalny });
       p += 46 + nN + nE + nK;
@@ -64,17 +64,17 @@
     const w = kat.wpisy.get(nazwa);
     if (!w) return null;
     const dv = kat.dv, p = w.lokalny;
-    if (p + 30 > u8.length || u32(dv, p) !== 0x04034b50) throw new Error("XLSX: uszkodzony nagłówek pliku w ZIP");
+    if (p + 30 > u8.length || u32(dv, p) !== 0x04034b50) throw new Error(W.t("err.xlsx7"));
     const start = p + 30 + u16(dv, p + 26) + u16(dv, p + 28);
-    if (start + w.spak > u8.length) throw new Error("XLSX: ucięte archiwum");
-    if (w.rozpak > budzet.zostalo) throw new Error(`XLSX: dane po dekompresji przekraczają limit ${budzet.mb} MB`);
+    if (start + w.spak > u8.length) throw new Error(W.t("err.xlsx8"));
+    if (w.rozpak > budzet.zostalo) throw new Error(W.t("err.xlsx1", { p1: budzet.mb }));
     const dane = u8.subarray(start, start + w.spak);
     let bajty;
     if (w.metoda === 0) { budzet.zostalo -= dane.length; bajty = dane; }
     else if (w.metoda === 8) bajty = await inflateRaw(dane, budzet);
-    else throw new Error("XLSX: nieobsługiwana kompresja");
+    else throw new Error(W.t("err.xlsx9"));
     const xml = new TextDecoder("utf-8").decode(bajty);
-    if (/<!DOCTYPE|<!ENTITY/i.test(xml)) throw new Error("XLSX: niedozwolona deklaracja DOCTYPE/ENTITY");
+    if (/<!DOCTYPE|<!ENTITY/i.test(xml)) throw new Error(W.t("err.xlsx10"));
     return xml;
   }
 
@@ -96,7 +96,7 @@
         out.push({ attrs: xml.slice(i + otw.length, gt), tresc: xml.slice(gt + 1, e) });
         i = e + zam.length;
       }
-      if (++licznik.n > MAX_ELEM) throw new Error("XLSX: za dużo elementów");
+      if (++licznik.n > MAX_ELEM) throw new Error(W.t("err.xlsx11"));
     }
     return out;
   }
@@ -143,7 +143,7 @@
     const xml = await wpis(u8, kat, arkusz, budzet);
     const out = [];
     for (const row of elementy(xml, "row", licznik)) {
-      if (out.length >= MAX_WIERSZY) throw new Error("XLSX: za dużo wierszy");
+      if (out.length >= MAX_WIERSZY) throw new Error(W.t("err.xlsx12"));
       const r = [];
       for (const c of elementy(row.tresc, "c", licznik)) {
         const mr = AT_R.exec(c.attrs);

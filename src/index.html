@@ -13,49 +13,39 @@
 </head>
 <body>
 <main id="start" class="start">
+  <div class="jezyk" role="group" data-i18n-aria-label="start.jezyk">
+    <button type="button" data-jezyk="pl">PL</button><button type="button" data-jezyk="en">EN</button>
+  </div>
   <h1>Wydatki</h1>
-  <p class="lead">Dashboard wydatków z wyciągów bankowych. <b>Działa wyłącznie w Twojej przeglądarce</b> —
-    pliki są czytane lokalnie i nigdzie nie są wysyłane.</p>
+  <p class="lead" data-i18n-h="start.lead"></p>
 
   <div id="strefa" class="strefa">
     <div class="akcje">
       <button id="btn-ostatni" class="btn pri" type="button" hidden></button>
-      <button id="btn-folder" class="btn pri" type="button">Wybierz folder Wydatki</button>
+      <button id="btn-folder" class="btn pri" type="button" data-i18n="start.folder"></button>
       <input id="wybierz-folder" type="file" webkitdirectory multiple hidden>
-      <label class="btn">Wybierz pliki<input id="wybierz-pliki" type="file" accept=".csv,.pdf,.xlsx,.yaml,.yml,.json" multiple hidden></label>
-      <button id="pokaz-demo" class="btn" type="button">Zobacz demo</button>
+      <label class="btn"><span data-i18n="start.pliki"></span><input id="wybierz-pliki" type="file" accept=".csv,.pdf,.xlsx,.ofx,.qfx,.yaml,.yml,.json" multiple hidden></label>
+      <button id="pokaz-demo" class="btn" type="button" data-i18n="start.demo"></button>
     </div>
-    <div class="muted">…albo przeciągnij tu folder lub pliki CSV</div>
+    <div class="muted" data-i18n="start.przeciagnij"></div>
     <div class="muted" id="info-zapis"></div>
-    <div class="muted" id="wyczysc-box" hidden><button id="btn-wyczysc" class="lnk" type="button">Wyczyść dane Wydatków z tej przeglądarki</button>
-      (komputer współdzielony; pliki w folderze zostają)</div>
+    <div class="muted" id="wyczysc-box" hidden><button id="btn-wyczysc" class="lnk" type="button" data-i18n="start.wyczysc"></button>
+      <span data-i18n="start.wyczysc_info"></span></div>
     <div id="start-blad" class="blad" role="alert"></div>
   </div>
 
   <details>
-    <summary>Jak przygotować folder</summary>
-    <pre>Wydatki/
-├── dane/
-│   ├── millennium/   ← CSV z Millenetu (Historia transakcji)
-│   ├── velo/         ← PDF z historii rachunku lub karty
-│   ├── revolut/      ← CSV z aplikacji lub Account Statement
-│   ├── alior/        ← CSV z historii karty
-│   ├── mbank/        ← CSV z historii rachunku (zestawienie operacji)
-│   ├── pkobp/        ← CSV z historii rachunku (zestawienie operacji)
-│   └── bnp/          ← XLSX „Zestawienie operacji” z GOonline
-└── ustawienia/       ← opcjonalnie: kategorie.yaml, konfiguracja.json;
-                        tu też trafiają zmiany z dashboardu (tagi.json, budzety.json…)
-                        albo kopia wydatki-ustawienia.json</pre>
-    <p class="muted">Bank jest rozpoznawany po treści pliku — podfoldery służą tylko porządkowi.
-      Bez <code>kategorie.yaml</code> działają reguły domyślne.</p>
+    <summary data-i18n="start.jak_folder"></summary>
+    <pre data-i18n="start.drzewo"></pre>
+    <p class="muted" data-i18n-h="start.rozpoznanie"></p>
   </details>
   <details>
-    <summary>Skąd mam pewność, że dane nie wychodzą?</summary>
+    <summary data-i18n="start.pewnosc"></summary>
     <ul>
-      <li>Strona ma politykę bezpieczeństwa (CSP) <code>connect-src 'none'</code> — przeglądarka blokuje każde połączenie sieciowe z tej strony.</li>
-      <li>Test: wyłącz internet (tryb samolotowy) i wczytaj pliki — wszystko działa tak samo.</li>
-      <li>Technicznie: narzędzia deweloperskie → zakładka Sieć — zero żądań po wczytaniu plików.</li>
-      <li>Kod jest jawny: jeden plik HTML, bez bibliotek z zewnątrz.</li>
+      <li data-i18n-h="start.pewnosc1"></li>
+      <li data-i18n="start.pewnosc2"></li>
+      <li data-i18n="start.pewnosc3"></li>
+      <li data-i18n="start.pewnosc4"></li>
     </ul>
   </details>
 </main>

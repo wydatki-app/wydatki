@@ -26,68 +26,68 @@
   // --- walidacja: port save_* z serwer.py --------------------------------------
   const WALIDUJ = {
     zwroty(ids) {
-      if (!listaStr(ids)) throw new Error("Oczekiwano listy stringów (ID transakcji).");
+      if (!listaStr(ids)) throw new Error(W.t("err.mag1"));
       return [...new Set(ids)].sort();
     },
     override(m) {
       if (!jestObiekt(m) || !Object.entries(m).every(([, v]) => typeof v === "string"))
-        throw new Error("Oczekiwano mapy {ID: kategoria}.");
+        throw new Error(W.t("err.mag2"));
       return Object.fromEntries(Object.entries(m).filter(([, v]) => v));
     },
     wlasne(names) {
-      if (!listaStr(names)) throw new Error("Oczekiwano listy nazw kategorii.");
+      if (!listaStr(names)) throw new Error(W.t("err.mag3"));
       const zRegul = new Set(M.kategorieRegul.map(k => k.toLowerCase())), seen = new Set(), clean = [];
       for (const raw of names) {
         const n = raw.trim().replace(/ /g, "_");
         if (!n) continue;
-        if (!NAZWA_RE.test(n)) throw new Error(`Niedozwolona nazwa kategorii: ${raw}`);
+        if (!NAZWA_RE.test(n)) throw new Error(W.t("err.mag4", { p1: raw }));
         const cf = n.toLowerCase();
         if (zRegul.has(cf) || seen.has(cf)) continue;
         seen.add(cf); clean.push(n);
       }
-      if (clean.length > MAX_WLASNE) throw new Error(`Za dużo kategorii (max ${MAX_WLASNE}).`);
+      if (clean.length > MAX_WLASNE) throw new Error(W.t("err.mag5", { p1: MAX_WLASNE }));
       return clean;
     },
     tagi(m) {
-      if (!jestObiekt(m) || !Object.values(m).every(listaStr)) throw new Error("Oczekiwano mapy {ID: [tag, ...]}.");
+      if (!jestObiekt(m) || !Object.values(m).every(listaStr)) throw new Error(W.t("err.mag6"));
       const clean = {};
       for (const [k, v] of Object.entries(m)) {
         const tags = [];
         for (const raw of v) {
           const n = raw.trim().replace(/ /g, "_");
-          if (!NAZWA_RE.test(n.replace(/^-+/, ""))) throw new Error(`Niedozwolona nazwa tagu: ${raw}`);
+          if (!NAZWA_RE.test(n.replace(/^-+/, ""))) throw new Error(W.t("err.mag7", { p1: raw }));
           if (!tags.includes(n)) tags.push(n);
         }
-        if (tags.length > MAX_TAGI_TX) throw new Error(`Za dużo tagów na transakcji (max ${MAX_TAGI_TX}).`);
+        if (tags.length > MAX_TAGI_TX) throw new Error(W.t("err.mag8", { p1: MAX_TAGI_TX }));
         if (tags.length) clean[k] = tags;
       }
       return clean;
     },
     budzety(lst) {
-      if (!Array.isArray(lst) || lst.length > 50) throw new Error("Oczekiwano listy budżetów (max 50).");
+      if (!Array.isArray(lst) || lst.length > 50) throw new Error(W.t("err.mag9"));
       return lst.map(b => {
-        if (!jestObiekt(b)) throw new Error("Budżet musi być obiektem.");
+        if (!jestObiekt(b)) throw new Error(W.t("err.mag10"));
         const nazwa = String(b.nazwa || "").trim();
-        if (!TXT_RE.test(nazwa)) throw new Error(`Niedozwolona nazwa budżetu: ${nazwa}`);
-        if (b.okres !== "miesiac" && b.okres !== "rok") throw new Error("Okres budżetu: 'miesiac' albo 'rok'.");
-        if (typeof b.limit !== "number" || !(b.limit >= 0 && b.limit < 1e7)) throw new Error("Limit budżetu: liczba 0–10 mln.");
+        if (!TXT_RE.test(nazwa)) throw new Error(W.t("err.mag11", { p1: nazwa }));
+        if (b.okres !== "miesiac" && b.okres !== "rok") throw new Error(W.t("err.mag12"));
+        if (typeof b.limit !== "number" || !(b.limit >= 0 && b.limit < 1e7)) throw new Error(W.t("err.mag13"));
         const out = { nazwa, okres: b.okres, limit: b.limit };
         for (const k of ["kategorie", "tagi", "bez_tagow"]) {
           const v = b[k] || [];
-          if (!Array.isArray(v) || !v.every(x => typeof x === "string" && TXT_RE.test(x))) throw new Error(`Pole ${k}: lista nazw.`);
+          if (!Array.isArray(v) || !v.every(x => typeof x === "string" && TXT_RE.test(x))) throw new Error(W.t("err.mag14", { p1: k }));
           if (v.length) out[k] = v;
         }
-        if (!out.kategorie && !out.tagi) throw new Error(`Budżet ${nazwa}: podaj kategorię lub tag.`);
+        if (!out.kategorie && !out.tagi) throw new Error(W.t("err.mag15", { p1: nazwa }));
         const w = b.wyjatki || {};
         if (!jestObiekt(w) || !Object.entries(w).every(([k, v]) => /^\d{4}(-\d{2})?$/.test(k) && typeof v === "number" && v >= 0 && v < 1e7))
-          throw new Error("Wyjątki: {'RRRR-MM' lub 'RRRR': limit}.");
+          throw new Error(W.t("err.mag16"));
         if (Object.keys(w).length) out.wyjatki = w;
         return out;
       });
     },
     // ustawienia FIRE; scisle=false (plik z folderu): błędne pole pominięte, reszta zostaje
     konfiguracja(k, scisle = true) {
-      if (!jestObiekt(k)) throw new Error("Oczekiwano obiektu ustawień.");
+      if (!jestObiekt(k)) throw new Error(W.t("err.mag17"));
       const out = {};
       const LICZBY = { fire_cel_mc: [0, 1e7], fire_swr: [0.005, 0.2], prog_jednorazowych: [0, 1e7], miesiecy_podsumowania: [1, 36] };
       for (const [n, [min, max]] of Object.entries(LICZBY)) {
@@ -95,28 +95,38 @@
         const v = k[n];
         const ok = typeof v === "number" && isFinite(v) && v >= min && v <= max && (n !== "miesiecy_podsumowania" || Number.isInteger(v));
         if (ok) out[n] = v;
-        else if (scisle) throw new Error(`${n}: liczba ${min}–${max}.`);
+        else if (scisle) throw new Error(W.t("err.mag18", { p1: n, p2: min, p3: max }));
       }
       for (const n of ["tagi_dzieci", "tagi_wydarzen"]) {
         if (k[n] === undefined) continue;
-        if (!listaStr(k[n]) || k[n].length > 20) { if (scisle) throw new Error(`${n}: lista nazw (max 20).`); continue; }
+        if (!listaStr(k[n]) || k[n].length > 20) { if (scisle) throw new Error(W.t("err.mag19", { p1: n })); continue; }
         const lst = [...new Set(k[n].map(x => x.trim().replace(/ /g, "_")).filter(Boolean))];
         const zla = lst.find(x => !NAZWA_RE.test(x));
-        if (zla) { if (scisle) throw new Error(`Niedozwolona nazwa tagu: ${zla}`); continue; }
+        if (zla) { if (scisle) throw new Error(W.t("err.mag7", { p1: zla })); continue; }
         out[n] = lst;
+      }
+      // język interfejsu: tylko z allowlisty (wartość z pliku jest niezaufana)
+      if (k.jezyk !== undefined) {
+        if (W.i18n && W.i18n.JEZYKI.includes(k.jezyk)) out.jezyk = k.jezyk;
+        else if (scisle) throw new Error(W.t("err.mag20"));
+      }
+      // waluta główna: kod ISO 4217 rozpoznawany przez Intl (zły kod wywróciłby formatowanie kwot)
+      if (k.waluta !== undefined) {
+        if (W.i18n && W.i18n.poprawnaWaluta(k.waluta)) out.waluta = k.waluta;
+        else if (scisle) throw new Error(W.t("err.mag21"));
       }
       // własne nazwy kart/rachunków: {"millennium:k1234": "Karta syna"}; klucz z allowlisty formatu
       // (odrzuca też "__proto__"), nazwa jak kategorie — bez znaków HTML
       if (k.nazwy_zrodel !== undefined) {
         const m = k.nazwy_zrodel;
         if (!jestObiekt(m) || Object.keys(m).length > 100) {
-          if (scisle) throw new Error("nazwy_zrodel: mapa {źródło: nazwa} (max 100).");
+          if (scisle) throw new Error(W.t("err.mag22"));
         } else {
           const clean = {};
           for (const [z, v] of Object.entries(m)) {
             const n = typeof v === "string" ? v.trim() : "";
             if (!W.model.ZRODLO_RE.test(z) || !NAZWA_RE.test(n)) {
-              if (scisle) throw new Error(`Niedozwolona nazwa karty/rachunku: ${String(v).slice(0, 40)}`);
+              if (scisle) throw new Error(W.t("err.mag23", { p1: String(v).slice(0, 40) }));
               continue;
             }
             clean[z] = n;
@@ -128,17 +138,17 @@
     },
     // reguły dodane w aplikacji: [{wzorzec, kategoria}] — wzorzec jak w kategorie.yaml (regex, bez ReDoS)
     reguly(lst) {
-      if (!Array.isArray(lst) || lst.length > MAX_REGULY) throw new Error(`Oczekiwano listy reguł (max ${MAX_REGULY}).`);
+      if (!Array.isArray(lst) || lst.length > MAX_REGULY) throw new Error(W.t("err.mag24", { p1: MAX_REGULY }));
       return lst.map(r => {
-        if (!jestObiekt(r)) throw new Error("Reguła musi być obiektem {wzorzec, kategoria}.");
+        if (!jestObiekt(r)) throw new Error(W.t("err.mag25"));
         const wz = String(r.wzorzec == null ? "" : r.wzorzec).trim();
         const kat = String(r.kategoria == null ? "" : r.kategoria).trim().replace(/ /g, "_");
-        if (!wz) throw new Error("Pusty wzorzec reguły.");
+        if (!wz) throw new Error(W.t("err.mag26"));
         const ryz = W.reguly && W.reguly.ryzykowny(wz);
-        if (ryz) throw new Error(`Wzorzec „${wz.slice(0, 40)}”: ${ryz}`);
+        if (ryz) throw new Error(W.t("err.mag27", { p1: wz.slice(0, 40), p2: ryz }));
         try { new RegExp(wz.replace(/\(\?P</g, "(?<"), "i"); }
-        catch (e) { throw new Error(`Błędny wzorzec „${wz.slice(0, 40)}”: ${e.message}`); }
-        if (!NAZWA_RE.test(kat)) throw new Error(`Niedozwolona nazwa kategorii: ${kat}`);
+        catch (e) { throw new Error(W.t("err.mag28", { p1: wz.slice(0, 40), p2: e.message })); }
+        if (!NAZWA_RE.test(kat)) throw new Error(W.t("err.mag4", { p1: kat }));
         return { wzorzec: wz, kategoria: kat };
       });
     },

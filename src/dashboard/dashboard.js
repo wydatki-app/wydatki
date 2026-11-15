@@ -2,8 +2,10 @@
 // Zapis ustawień przez wApi() = lokalna atrapa API serwera (src/rdzen/magazyn.js), bez sieci.
 globalThis.W.uruchomDashboard = function (DATA) {
 const wApi = (u, o) => globalThis.W.api(u, o), wPrzeladuj = () => globalThis.W.przeladuj();
-const PAL = DATA.pal, fmt = n => n.toLocaleString('pl-PL',{minimumFractionDigits:2,maximumFractionDigits:2});
-const fmt0 = n => Math.round(n).toLocaleString('pl-PL');
+const I=globalThis.W.i18n, t=globalThis.W.t, tH=globalThis.W.tH;
+const _t=t;   // alias: w funkcjach, gdzie `t` oznacza transakcję (parametr/zmienna), tłumaczenia wołamy przez _t
+const PAL = DATA.pal, fmt = n => I.liczba(n,2);
+const fmt0 = n => I.liczba(Math.round(n),0);
 // bezpieczne kodowanie ID (zawiera | oraz znaki z opisów) do atrybutu data-id
 const enc = s => encodeURIComponent(s), dec = s => decodeURIComponent(s);
 // escapowanie HTML — opisy z wyciągów i nazwy z plików ustawień nie mogą wstrzyknąć znaczników
@@ -21,7 +23,7 @@ async function saveRefunds(){
   if(SERVER){
     try{ await wApi('/api/zwroty',{method:'POST',headers:{'Content-Type':'application/json'},
          body:JSON.stringify([...refunds])}); }
-    catch(e){ alert('Nie zapisano na serwerze: '+e.message); }
+    catch(e){ alert(t('d.err_serwer',{blad:e.message})); }
   } else { localStorage.setItem(LS_KEY, JSON.stringify([...refunds])); }
 }
 async function toggleRefund(id){
@@ -43,7 +45,7 @@ async function saveOverrides(){
   if(SERVER){
     try{ await wApi('/api/kategorie',{method:'POST',headers:{'Content-Type':'application/json'},
          body:JSON.stringify(overrides)}); }
-    catch(e){ alert('Nie zapisano kategorii na serwerze: '+e.message); }
+    catch(e){ alert(t('d.err_kat_serwer',{blad:e.message})); }
   } else { localStorage.setItem(LS_KAT, JSON.stringify(overrides)); }
 }
 async function setCat(id, cat, orig){
@@ -84,13 +86,13 @@ async function loadWlasne(){
 async function dodajKategorie(raw){
   const nazwa=(raw||'').trim().replace(/\s+/g,'_');
   if(!nazwa) return null;
-  if(!NAZWA_OK.test(nazwa)){ alert('Niedozwolona nazwa. Litery, cyfry, spacja, ( ) + & . / - , max 40 znaków.'); return null; }
+  if(!NAZWA_OK.test(nazwa)){ alert(t('d.nazwa_zla')); return null; }
   const istnieje=[...catList()].find(c=>c.toLowerCase()===nazwa.toLowerCase());
   if(istnieje) return istnieje;          // już jest — po prostu jej użyj
   const przed=wlasne.slice();
   wlasne.push(nazwa);
   try{ await saveWlasne(); }
-  catch(e){ wlasne=przed; alert('Nie zapisano kategorii: '+e.message); return null; }
+  catch(e){ wlasne=przed; alert(t('d.err_kat',{blad:e.message})); return null; }
   return nazwa;
 }
 
@@ -98,14 +100,14 @@ async function dodajKategorie(raw){
 async function usunKategorie(nazwa){
   const uzyte=Object.entries(overrides).filter(([,c])=>c===nazwa).map(([id])=>id);
   const pyt=uzyte.length
-    ? `Usunąć kategorię „${nazwa}"?\n${uzyte.length} transakcji wróci do kategorii z reguł.`
-    : `Usunąć kategorię „${nazwa}"?`;
+    ? t('d.usun_kat_tx',{nazwa,n:uzyte.length})
+    : t('d.usun_kat',{nazwa});
   if(!confirm(pyt)) return;
   const przedW=wlasne.slice(), przedO={...overrides};
   wlasne=wlasne.filter(c=>c!==nazwa);
   uzyte.forEach(id=>delete overrides[id]);
   try{ await saveWlasne(); await saveOverrides(); }
-  catch(e){ wlasne=przedW; overrides=przedO; alert('Nie usunięto: '+e.message); }
+  catch(e){ wlasne=przedW; overrides=przedO; alert(t('d.nie_usunieto',{blad:e.message})); }
   renderAll();
 }
 
@@ -120,7 +122,7 @@ async function loadReguly(){ try{ const r=await wApi('/api/reguly-wlasne'); if(r
 async function loadKonf(){ try{ const r=await wApi('/api/konfiguracja'); if(r.ok) konf=await r.json(); }catch(e){ console.warn(e.message); } }
 
 // --- ŹRÓDŁA: bank → karta/rachunek (t.z = "bank" | "bank:k1234" | "bank:r1234", z importu) ---
-const BANK_N={millennium:'Millennium',velo:'VeloBank',revolut:'Revolut',alior:'Alior',mbank:'mBank',pkobp:'PKO BP',bnp:'BNP Paribas'};
+const BANK_N={millennium:'Millennium',velo:'VeloBank',revolut:'Revolut',alior:'Alior',mbank:'mBank',pkobp:'PKO BP',bnp:'BNP Paribas',ofx:'OFX/QFX'};
 const BANK_ORDER=Object.keys(BANK_N);
 const ZR_OK=globalThis.W.model.ZRODLO_RE;
 // budowa DOM bez innerHTML: teksty jako węzły tekstowe, atrybuty przez właściwości/setAttribute
@@ -136,17 +138,17 @@ function h(tag,props,...kids){
 const zrOf=t=>ZR_OK.test(t.z||'')?t.z:'';
 const zrBank=z=>z?z.split(':')[0]:'';
 const nazwyZr=()=>konf.nazwy_zrodel||{};
-const bankNazwa=b=>BANK_N[b]||'nieznane';
-function zrDomyslna(z){ const k=z.split(':')[1]; if(!k) return 'bez numeru karty / rachunku'; const typ=k[0]==='k'?'karta':'rachunek'; return k.length>1?`${typ} …${k.slice(1)}`:typ; }
+const bankNazwa=b=>BANK_N[b]||t('d.nieznane');
+function zrDomyslna(z){ const k=z.split(':')[1]; if(!k) return t('d.zr_bez_numeru'); const typ=k[0]==='k'?t('d.karta'):t('d.rachunek'); return k.length>1?`${typ} …${k.slice(1)}`:typ; }
 const zrNazwa=z=>nazwyZr()[z]||zrDomyslna(z);
-function zrPelna(z){ if(!z) return 'źródło nieznane'; const n=nazwyZr()[z]||(z.includes(':')?zrDomyslna(z):''); return bankNazwa(zrBank(z))+(n?' · '+n:''); }
+function zrPelna(z){ if(!z) return t('d.zr_nieznane'); const n=nazwyZr()[z]||(z.includes(':')?zrDomyslna(z):''); return bankNazwa(zrBank(z))+(n?' · '+n:''); }
 const zrKolor=b=>PAL[Math.max(0,BANK_ORDER.indexOf(b))%PAL.length];
 const zrPasuje=(t,f)=>!f||(f.startsWith('b:')?zrBank(zrOf(t))===f.slice(2):zrOf(t)===f.slice(2));
 const zrPokazSub=zs=>zs.length>1||zs.some(z=>z.includes(':'));   // bank z jednym źródłem bez numeru = bez podwierszy
 async function zapiszUst(url, dane, co){
   const r=await wApi(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(dane)});
   const j=await r.json().catch(()=>({}));
-  if(!r.ok||!j.ok){ alert(`Nie zapisano (${co}): `+(j.error||('HTTP '+r.status))); return false; }
+  if(!r.ok||!j.ok){ alert(t('d.nie_zapisano_co',{co,blad:j.error||('HTTP '+r.status)})); return false; }
   return true;
 }
 // kategorie z reguł liczone są przy imporcie → po zmianie reguł/ustawień przeliczenie całości
@@ -154,12 +156,12 @@ async function dodajRegule(tekst, kat){
   const wz=naWzorzec(tekst);
   if(!wz||!kat) return false;
   if(reguly.some(r=>r.wzorzec===wz&&r.kategoria===kat)) return true;
-  if(!(await zapiszUst('/api/reguly-wlasne',[...reguly,{wzorzec:wz,kategoria:kat}],'reguła'))) return false;
+  if(!(await zapiszUst('/api/reguly-wlasne',[...reguly,{wzorzec:wz,kategoria:kat}],t('d.co_regula')))) return false;
   wPrzeladuj(); return true;
 }
 async function usunRegule(i){
-  const r=reguly[i]; if(!r||!confirm(`Usunąć regułę „${odWzorca(r.wzorzec)}” → ${r.kategoria.replace(/_/g,' ')}?`)) return;
-  if(await zapiszUst('/api/reguly-wlasne',reguly.filter((_,j)=>j!==i),'reguła')) wPrzeladuj();
+  const r=reguly[i]; if(!r||!confirm(t('d.usun_regule',{wzorzec:odWzorca(r.wzorzec),kat:r.kategoria.replace(/_/g,' ')}))) return;
+  if(await zapiszUst('/api/reguly-wlasne',reguly.filter((_,j)=>j!==i),t('d.co_regula'))) wPrzeladuj();
 }
 // po ręcznej zmianie kategorii: czy przenieść też podobne (i przyszłe) transakcje — tylko gdy jest co przenieść
 async function proponujRegule(id, kat){
@@ -167,9 +169,7 @@ async function proponujRegule(id, kat){
   const wz=RG().sugestia(t.o), test=wz&&testerWzorca(wz); if(!test) return;
   const inne=DATA.out.filter(x=>x.id!==id && effCat(x)!==kat && test(x));
   if(!inne.length) return;
-  const odp=prompt(`Podobny opis ma jeszcze ${inne.length} transakcji (np. „${inne[0].o.slice(0,40)}”).\n`
-    +`Przypisać je — i przyszłe — automatycznie do „${kat.replace(/_/g,' ')}”?\n\n`
-    +`Fragment opisu, po którym rozpoznać (możesz poprawić). Anuluj = zmiana tylko tej jednej transakcji:`, odWzorca(wz));
+  const odp=prompt(_t('d.podobny_opis',{n:inne.length,opis:inne[0].o.slice(0,40),kat:kat.replace(/_/g,' ')}), odWzorca(wz));
   if(odp&&odp.trim()) await dodajRegule(odp, kat);
 }
 
@@ -191,8 +191,8 @@ function inTagPer(t){
 }
 function tagPerLabel(){
   const m=tagPer.mode;
-  if(m==='all') return 'cały okres';
-  if(m==='tab') return period==='all'?'cały okres (jak zakładka)':mLbl(period)+' (jak zakładka)';
+  if(m==='all') return t('d.caly_okres');
+  if(m==='tab') return period==='all'?t('d.caly_okres_zakl'):t('d.jak_zakladka',{m:mLbl(period)});
   if(m==='range') return `${tagPer.od||'…'} → ${tagPer.do||'…'}`;
   return mLbl(m);
 }
@@ -205,14 +205,14 @@ function allTags(){ const s=new Set(); Object.values(tagi).forEach(a=>a.forEach(
 function normTag(raw){
   const n=(raw||'').trim().replace(/\s+/g,'_');
   if(!n) return null;
-  if(!NAZWA_OK.test(n)){ alert('Niedozwolona nazwa tagu. Litery, cyfry, spacja, ( ) + & . / - , max 40 znaków.'); return null; }
+  if(!NAZWA_OK.test(n)){ alert(t('d.nazwa_tagu_zla')); return null; }
   return allTags().find(x=>x.toLowerCase()===n.toLowerCase()) || n;   // istniejący tag niezależnie od wielkości liter
 }
 async function saveTagi(){
   if(SERVER){
     try{ const r=await wApi('/api/tagi',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(tagi)});
          const j=await r.json().catch(()=>({})); if(!r.ok||!j.ok) throw new Error(j.error||('HTTP '+r.status)); }
-    catch(e){ alert('Nie zapisano tagów na serwerze: '+e.message); }
+    catch(e){ alert(t('d.nie_zapisano_tagow',{blad:e.message})); }
   } else { localStorage.setItem(LS_TAGI, JSON.stringify(tagi)); }
 }
 async function loadTagi(){
@@ -235,8 +235,8 @@ async function removeTag(id, tag){
 }
 async function deleteTagAll(tag){
   const n=Object.values(tagi).filter(a=>a.includes(tag)).length;   // tylko ręczne (wpisy "-Tag" nie liczą się)
-  if(!n){ alert(`Tag „${tag}" pochodzi z reguł (kategorie.yaml, sekcja _tagi) — usuń go w pliku.`); return; }
-  if(!confirm(`Usunąć tag „${tag}" z ${n} transakcji?`)) return;
+  if(!n){ alert(t('d.tag_z_regul',{tag})); return; }
+  if(!confirm(t('d.usun_tag',{tag,n}))) return;
   for(const id in tagi){ const a=tagi[id].filter(x=>x!==tag); if(a.length) tagi[id]=a; else delete tagi[id]; }
   if(selTag===tag) selTag=null;
   await saveTagi(); renderAll();
@@ -251,7 +251,7 @@ async function saveBudzety(){
   if(SERVER){
     try{ const r=await wApi('/api/budzety',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(budzety)});
          const j=await r.json().catch(()=>({})); if(!r.ok||!j.ok) throw new Error(j.error||('HTTP '+r.status)); }
-    catch(e){ alert('Nie zapisano budżetów: '+e.message); await loadBudzety(); }   // odrzucone → stan sprzed zmiany
+    catch(e){ alert(t('d.nie_zapisano_bud',{blad:e.message})); await loadBudzety(); }   // odrzucone → stan sprzed zmiany
   } else { localStorage.setItem(LS_BUD, JSON.stringify(budzety)); }
 }
 async function loadBudzety(){
@@ -285,20 +285,21 @@ function catColor(cat){
 const CUR=(()=>{const n=new Date();return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`;})();
 const CFG=Object.assign({n:4,jedn:300,syn:[],wyd:[],fire_mc:5000,swr:0.04}, DATA.sumcfg||{});
 const fullMonths=months.filter(m=>m<CUR);
-const MPEL=['styczeń','luty','marzec','kwiecień','maj','czerwiec','lipiec','sierpień','wrzesień','październik','listopad','grudzień'];
-const mLong=m=>{const[y,mo]=m.split('-');return MPEL[+mo-1]+' '+y;};
+const mLong=m=>I.miesiac(m,true), mLbl=m=>I.miesiac(m,false);
 const dim=m=>{const[y,mo]=m.split('-').map(Number);return new Date(y,mo,0).getDate();};
 const prevFull=(m,n)=>fullMonths.filter(x=>x<m).slice(-n);          // n pełnych miesięcy przed m
 const refMonths=()=>period==='all' ? fullMonths.slice(-CFG.n) : [period];
 const sumK=rs=>rs.reduce((s,t)=>s+t.k,0);
-const fmtM=n=>n>=1e6?(n/1e6).toLocaleString('pl-PL',{maximumFractionDigits:2})+' mln':fmt0(n/1000)+' tys.';
+const nfm=(n,o)=>n.toLocaleString(I.locale(),o);
+const fmtM=n=>n>=1e6?t('d.fmt_mln',{n:nfm(n/1e6,{maximumFractionDigits:2})}):t('d.fmt_tys',{n:fmt0(n/1000)});
 // frakcja upływu miesiąca (1 dla zamkniętych)
 const monthFrac=m=>m===CUR?new Date().getDate()/dim(m):(m<CUR?1:0);
 function layer(t){
   const c=effCat(t), g=tagsOf(t);
-  if(c==='Podróże') return 'podr';
+  const rl=globalThis.W.reguly.rola(c);   // role: nazwy z domyślnych reguł PL i EN
+  if(rl==='podroze') return 'podr';
   if(g.some(x=>CFG.syn.includes(x))) return 'syn';
-  if(c==='Rodzina_i_prezenty') return 'rodz';
+  if(rl==='rodzina') return 'rodz';
   if(g.some(x=>CFG.wyd.includes(x))) return 'wyd';
   return t.k>=CFG.jedn ? 'jedn' : 'biez';
 }
@@ -344,8 +345,8 @@ if(months.length){
 function setPeriod(p){ period=p; selCat=null; renderAll(); }
 function renderTabs(){
   const S=document.getElementById('tabs');
-  S.innerHTML=`<option value="all">Cały okres</option>`+months.slice().reverse()
-    .map(m=>`<option value="${m}">${mLong(m)}${m===CUR?' (w toku)':''}</option>`).join('');
+  S.innerHTML=`<option value="all">${escH(t('d.caly_okres_cap'))}</option>`+months.slice().reverse()
+    .map(m=>`<option value="${m}">${mLong(m)}${m===CUR?escH(t('d.w_toku')):''}</option>`).join('');
   S.value=period; S.onchange=()=>setPeriod(S.value);
   const i=months.indexOf(period), P=document.getElementById('per-prev'), N=document.getElementById('per-next');
   P.disabled = period!=='all' && i<=0;
@@ -369,27 +370,27 @@ function renderKpis(){
   const inc=sumK(inRows()), refs=sumK(refundRows());
   let h='';
   if(period==='all'){
-    const ms=refMonths(), d=decomp(ms), lbl=`śr./mc z ${ms.length} pełnych mc`;
-    h+=kpi('Wydatki — średnio / mc',`${fmt0(d.razem)}<small>zł</small>`,`<span>${lbl}</span>`);
-    h+=kpi('Bez podróży',`${fmt0(d.bezpodr)}<small>zł</small>`,`<span>podróże ${fmt0(d.podr)} zł/mc</span>`);
-    h+=kpi('Ja + dom',`${fmt0(d.ja)}<small>zł</small>`,`<span>bez dzieci, rodziny, podróży</span>`);
-    h+=kpi('Bieżący koszt życia',`${fmt0(d.biez)}<small>zł/mc</small>`,
-      `<span>${Math.round(100*d.biez/fire)}% celu pasywnego ${fmt0(fire)} zł</span>`+meter(d.biez,fire),'hero');
-    h+=kpi('Wpływy dodatkowe',`${fmt0(inc)}<small>zł</small>`,`<span>cashback, zwroty — cały okres</span>`);
+    const ms=refMonths(), d=decomp(ms), lbl=escH(t('d.kpi_sr_z',{n:ms.length}));
+    h+=kpi(escH(t('d.kpi_wyd_sr')),I.kwotaH(d.razem),`<span>${lbl}</span>`);
+    h+=kpi(escH(t('d.kpi_bez_podrozy')),I.kwotaH(d.bezpodr),`<span>${tH('d.kpi_podroze',{kwota:I.kwota(d.podr)})}</span>`);
+    h+=kpi(escH(t('d.kpi_ja_dom')),I.kwotaH(d.ja),`<span>${escH(t('d.kpi_ja_dom_sub'))}</span>`);
+    h+=kpi(escH(t('d.kpi_biezacy')),I.kwotaH(d.biez)+'<small>'+escH(t('d.na_mc'))+'</small>',
+      `<span>${tH('d.kpi_cel_pas',{p:Math.round(100*d.biez/fire),kwota:I.kwota(fire)})}</span>`+meter(d.biez,fire),'hero');
+    h+=kpi(escH(t('d.kpi_wplywy')),I.kwotaH(inc),`<span>${escH(t('d.kpi_wplywy_all'))}</span>`);
   } else {
     const d=decomp([period]), base=decomp(prevFull(period,CFG.n)), f=monthFrac(period), live=f<1;
-    const bl=prevFull(period,CFG.n).length, lb=live?`vs śr. ${bl} mc (pro rata)`:`vs śr. ${bl} mc`;
+    const bl=prevFull(period,CFG.n).length, lb=escH(t(live?'d.vs_sr_prorata':'d.vs_sr',{n:bl}));
     const b=k=>base[k]*(live?f:1);
     const prog=live&&f>0.15;
-    h+=kpi('Wydatki',`${fmt0(d.razem)}<small>zł</small>`,dlt(d.razem,b('razem'),lb)+(prog?`<span>· prognoza ${fmt0(d.razem/f)} zł</span>`:''));
-    h+=kpi('Ja + dom',`${fmt0(d.ja)}<small>zł</small>`,dlt(d.ja,b('ja'),lb));
+    h+=kpi(escH(t('d.kpi_wydatki')),I.kwotaH(d.razem),dlt(d.razem,b('razem'),lb)+(prog?`<span>${tH('d.kpi_prognoza',{kwota:I.kwota(d.razem/f)})}</span>`:''));
+    h+=kpi(escH(t('d.kpi_ja_dom')),I.kwotaH(d.ja),dlt(d.ja,b('ja'),lb));
     const bz=prog?d.biez/f:d.biez;
-    h+=kpi('Bieżący koszt życia',`${fmt0(d.biez)}<small>zł</small>`,
-      dlt(d.biez,b('biez'),lb)+`<span style="flex-basis:100%">${prog?'prognoza '+fmt0(bz)+' zł · ':''}${Math.round(100*bz/fire)}% celu ${fmt0(fire)} zł</span>`+meter(bz,fire),'hero');
-    h+=kpi('Podróże + wydarzenia',`${fmt0(d.podr+d.wyd)}<small>zł</small>`,`<span>dzieci + rodzina: ${fmt0(d.syn+d.rodz)} zł</span>`);
-    h+=kpi('Wpływy dodatkowe',`${fmt0(inc)}<small>zł</small>`,`<span>cashback, zwroty</span>`);
+    h+=kpi(escH(t('d.kpi_biezacy')),I.kwotaH(d.biez),
+      dlt(d.biez,b('biez'),lb)+`<span style="flex-basis:100%">${prog?tH('d.prognoza_dot',{kwota:I.kwota(bz)}):''}${tH('d.p_celu',{p:Math.round(100*bz/fire),kwota:I.kwota(fire)})}</span>`+meter(bz,fire),'hero');
+    h+=kpi(escH(t('d.kpi_podr_wyd')),I.kwotaH(d.podr+d.wyd),`<span>${tH('d.kpi_dzieci_rodz',{kwota:I.kwota(d.syn+d.rodz)})}</span>`);
+    h+=kpi(escH(t('d.kpi_wplywy')),I.kwotaH(inc),`<span>${escH(t('d.kpi_wplywy_m'))}</span>`);
   }
-  if(refs) h+=kpi('Oczekiwane zwroty',`${fmt0(refs)}<small>zł</small>`,`<span>wyłączone z sum</span>`);
+  if(refs) h+=kpi(escH(t('d.kpi_zwroty')),I.kwotaH(refs),`<span>${escH(t('d.kpi_zwroty_sub'))}</span>`);
   K.innerHTML=h;
 }
 
@@ -397,12 +398,12 @@ function renderKpis(){
 function renderFire(){
   const F=document.getElementById('fire'), ms=refMonths(), d=decomp(ms);
   document.getElementById('fire-scope').textContent = period==='all'
-    ? (ms.length?`śr./mc ${mLbl(ms[0])} – ${mLbl(ms[ms.length-1])}`:'brak pełnych miesięcy')
-    : mLong(period)+(period===CUR?' · w toku':'');
-  if(!d.razem){ F.innerHTML='<div class="muted">Brak danych w okresie.</div>'; return; }
-  const rows=[['Wszystkie wydatki','razem','tot'],['− Podróże','podr','sub'],['− Dzieci (tag '+CFG.syn.join(', ')+')','syn','sub'],
-    ['− Rodzina, prezenty','rodz','sub'],['− Wydarzenia','wyd','sub'],['= Ja + dom','ja','tot'],
-    ['− Jednorazowe ≥'+CFG.jedn+' zł','jedn','sub'],['= Bieżące (powtarzalne)','biez','hero']];
+    ? (ms.length?t('d.fire_scope',{od:mLbl(ms[0]),do:mLbl(ms[ms.length-1])}):t('d.brak_pelnych'))
+    : mLong(period)+(period===CUR?t('d.w_toku_dot'):'');
+  if(!d.razem){ F.innerHTML=`<div class="muted">${escH(t('d.brak_danych_okres'))}</div>`; return; }
+  const rows=[[t('d.f_wszystkie'),'razem','tot'],[t('d.f_podroze'),'podr','sub'],[t('d.f_dzieci',{tagi:CFG.syn.join(', ')}),'syn','sub'],
+    [t('d.f_rodzina'),'rodz','sub'],[t('d.f_wydarzenia'),'wyd','sub'],[t('d.f_ja_dom'),'ja','tot'],
+    [t('d.f_jedn',{kwota:I.kwota(CFG.jedn)}),'jedn','sub'],[t('d.f_biezace'),'biez','hero']];
   let run=d.razem, h='';
   rows.forEach(([lbl,k,typ])=>{
     const v=d[k]; if(typ==='sub' && v<1) return;
@@ -410,17 +411,17 @@ function renderFire(){
     if(typ==='sub'){ left=(run-v)/d.razem; run-=v; col='var(--s2)'; }
     if(typ==='hero') col='var(--s1)';
     if(typ!=='sub' && k!=='razem') h+='<div class="sep"></div>';
-    h+=`<div class="l ${typ!=='sub'?'b':''}" title="${lbl}">${lbl}</div>
+    h+=`<div class="l ${typ!=='sub'?'b':''}" title="${escH(lbl)}">${escH(lbl)}</div>
       <div class="tr"><i style="left:${(left*100).toFixed(2)}%;width:${Math.max(.4,w*100).toFixed(2)}%;background:${col};${typ==='sub'?'opacity:.75':''}"></i></div>
       <div class="v ${typ!=='sub'?'b':''}">${typ==='sub'?'−':''}${fmt0(v)}</div>`;
   });
   const swr=CFG.swr, cap=x=>x*12/swr;
   F.innerHTML=`<div class="wf">${h}</div>
     <div class="firebox">
-      <div>Kapitał na bieżące (${Math.round(swr*1000)/10}%)<b>${fmtM(cap(d.biez))}</b></div>
-      <div>Kapitał na Ja + dom<b>${fmtM(cap(d.ja))}</b></div>
-      <div>Cel ${fmt0(CFG.fire_mc)} zł/mc pasywnie<b>${fmtM(cap(CFG.fire_mc))}</b></div>
-      <div>Każde 100 zł/mc mniej<b>−${fmtM(cap(100))}</b></div>
+      <div>${escH(t('d.cap_biezace',{p:Math.round(swr*1000)/10}))}<b>${escH(fmtM(cap(d.biez)))}</b></div>
+      <div>${escH(t('d.cap_ja_dom'))}<b>${escH(fmtM(cap(d.ja)))}</b></div>
+      <div>${escH(t('d.cel_pasywnie',{kwota:I.kwota(CFG.fire_mc)}))}<b>${escH(fmtM(cap(CFG.fire_mc)))}</b></div>
+      <div>${escH(t('d.kazde_100',{kwota:I.kwota(100)}))}<b>−${escH(fmtM(cap(100)))}</b></div>
     </div>`;
 }
 
@@ -435,24 +436,24 @@ function cumOf(m){
 function renderPace(){
   const P=document.getElementById('pace');
   const M = period==='all' ? (months.includes(CUR)?CUR:months[months.length-1]) : period;
-  if(!M){ P.innerHTML='<div class="muted">brak danych</div>'; return; }
+  if(!M){ P.innerHTML=`<div class="muted">${escH(_t('d.brak_danych'))}</div>`; return; }
   document.getElementById('pace-scope').textContent=mLong(M);
   const iM=months.indexOf(M), Mp=iM>0?months[iM-1]:null, base=prevFull(M,CFG.n);
   const series=[{lbl:mLong(M),col:'var(--s1)',w:2.5,v:cumOf(M)}];
   if(Mp) series.push({lbl:mLong(Mp),col:'var(--s2)',w:2,v:cumOf(Mp)});
   if(base.length){ const cs=base.map(cumOf), v=[];
     for(let i=0;i<31;i++) v.push(cs.reduce((s,c)=>s+c[Math.min(i,c.length-1)],0)/cs.length);
-    series.push({lbl:`średnia ${base.length} mc`,col:'var(--ref)',w:2,dash:'5 4',v}); }
+    series.push({lbl:_t('d.srednia_mc',{n:base.length}),col:'var(--ref)',w:2,dash:'5 4',v}); }
   const W=560,H=250,l=46,r=14,t=12,b=26, X=d=>l+(d-1)/30*(W-l-r);
   const mx=Math.max(...series.flatMap(s=>s.v),1), step=Math.pow(10,Math.floor(Math.log10(mx/4))), nice=[1,2,2.5,5,10].map(x=>x*step).find(x=>mx/x<=5)||step*10;
   const top=Math.ceil(mx/nice)*nice, Y=v=>H-b-(v/top)*(H-t-b);
   let g='';
-  for(let v=0;v<=top+1e-6;v+=nice) g+=`<line class="gl" x1="${l}" x2="${W-r}" y1="${Y(v)}" y2="${Y(v)}"/><text class="ax" x="${l-6}" y="${Y(v)+4}" text-anchor="end">${v>=1000?(v/1000).toLocaleString('pl-PL')+'k':v}</text>`;
+  for(let v=0;v<=top+1e-6;v+=nice) g+=`<line class="gl" x1="${l}" x2="${W-r}" y1="${Y(v)}" y2="${Y(v)}"/><text class="ax" x="${l-6}" y="${Y(v)+4}" text-anchor="end">${v>=1000?nfm(v/1000)+escH(_t('d.tys_k')):v}</text>`;
   [1,8,15,22,29].forEach(d=>g+=`<text class="ax" x="${X(d)}" y="${H-8}" text-anchor="middle">${d}</text>`);
   const paths=series.slice().reverse().map(s=>`<path d="${s.v.map((v,i)=>(i?'L':'M')+X(i+1).toFixed(1)+' '+Y(v).toFixed(1)).join(' ')}" style="fill:none;stroke:${s.col};stroke-width:${s.w};stroke-linejoin:round;stroke-linecap:round" ${s.dash?`stroke-dasharray="${s.dash}"`:''}/>`).join('');
   const s0=series[0], lastV=s0.v[s0.v.length-1]||0;
   const end=s0.v.length?`<circle cx="${X(s0.v.length)}" cy="${Y(lastV)}" r="4" style="fill:${s0.col};stroke:var(--card);stroke-width:2"/>`:'';
-  P.innerHTML=`<div class="lgd">${series.map(s=>`<span><i class="ln" style="background:${s.col}${s.dash?';opacity:.8':''}"></i>${s.lbl}</span>`).join('')}</div>
+  P.innerHTML=`<div class="lgd">${series.map(s=>`<span><i class="ln" style="background:${s.col}${s.dash?';opacity:.8':''}"></i>${escH(s.lbl)}</span>`).join('')}</div>
     <div class="chart"><svg viewBox="0 0 ${W} ${H}">${g}${paths}${end}
       <line id="pace-x" y1="${t}" y2="${H-b}" style="stroke:var(--mut);stroke-width:1;opacity:0"/>
       <rect x="${l}" y="${t}" width="${W-l-r}" height="${H-t-b}" fill="transparent" id="pace-hit"/></svg></div>`;
@@ -461,7 +462,7 @@ function renderPace(){
     const rc=svg.getBoundingClientRect(), sx=(e.clientX-rc.left)*W/rc.width;
     const d=Math.max(1,Math.min(31,Math.round((sx-l)/(W-l-r)*30)+1));
     xl.setAttribute('x1',X(d)); xl.setAttribute('x2',X(d)); xl.style.opacity=.5;
-    tipShow(e,`<b>dzień ${d}</b>`+series.map(s=>s.v[d-1]!=null?tipRow(s.lbl,fmt0(s.v[d-1])+' zł',s.col):'').join(''));
+    tipShow(e,`<b>${tH('d.dzien',{d})}</b>`+series.map(s=>s.v[d-1]!=null?tipRow(escH(s.lbl),escH(I.kwota(s.v[d-1])),s.col):'').join(''));
   };
   hit.onmouseleave=()=>{ xl.style.opacity=0; tipHide(); };
 }
@@ -469,8 +470,8 @@ function renderPace(){
 // --- trendy: struktura miesięcy (warstwy FIRE) ---
 function renderMonthsChart(){
   const C=document.getElementById('months-chart');
-  if(!months.length){ C.innerHTML='<div class="muted">brak danych</div>'; return; }
-  const L=[['biez','Bieżące','var(--s1)'],['jedn','Jednorazowe ≥'+CFG.jedn,'var(--s2)'],['rodz','Dzieci + rodzina','var(--s3)'],['podr','Podróże + wydarzenia','var(--s4)']];
+  if(!months.length){ C.innerHTML=`<div class="muted">${escH(_t('d.brak_danych'))}</div>`; return; }
+  const L=[['biez',_t('d.l_biezace'),'var(--s1)'],['jedn',_t('d.l_jedn',{n:CFG.jedn}),'var(--s2)'],['rodz',_t('d.l_dzieci_rodz'),'var(--s3)'],['podr',_t('d.kpi_podr_wyd'),'var(--s4)']];
   let data=months.map(m=>{ const d=decomp([m]); return {m, biez:d.biez, jedn:d.jedn, rodz:d.syn+d.rodz, podr:d.podr+d.wyd, tot:d.razem}; });
   // pomiń początkowe miesiące z niepełnymi źródłami (np. tylko Revolut) — < 25% mediany pełnych miesięcy
   const med=(a=>a.length?a[Math.floor(a.length/2)]:0)(data.filter(x=>x.m<CUR).map(x=>x.tot).sort((a,b)=>a-b));
@@ -480,7 +481,7 @@ function renderMonthsChart(){
   const mx=Math.max(...data.map(x=>x.tot),fire)*1.08, nice=mx>20000?5000:2000, top=Math.ceil(mx/nice)*nice;
   const Y=v=>H-b-(v/top)*(H-t-b), slot=(W-l-r)/data.length, bw=Math.min(44,slot*.6);
   let g='';
-  for(let v=0;v<=top;v+=nice) g+=`<line class="gl" x1="${l}" x2="${W-r}" y1="${Y(v)}" y2="${Y(v)}"/><text class="ax" x="${l-6}" y="${Y(v)+4}" text-anchor="end">${(v/1000).toLocaleString('pl-PL')}k</text>`;
+  for(let v=0;v<=top;v+=nice) g+=`<line class="gl" x1="${l}" x2="${W-r}" y1="${Y(v)}" y2="${Y(v)}"/><text class="ax" x="${l-6}" y="${Y(v)+4}" text-anchor="end">${nfm(v/1000)}${escH(_t('d.tys_k'))}</text>`;
   data.forEach((x,i)=>{
     const cx=l+slot*i+slot/2; let y0=0, segs='';
     L.forEach(([k,,col],j)=>{ const v=x[k]; if(v<=0) return;
@@ -488,15 +489,15 @@ function renderMonthsChart(){
       segs+=`<rect x="${cx-bw/2}" y="${y1}" width="${bw}" height="${h}" rx="2" style="fill:${col}"/>`; y0+=v; });
     g+=`<g class="mbar" data-i="${i}" style="cursor:pointer">${segs}
       <rect x="${cx-slot/2}" y="${t}" width="${slot}" height="${H-t-b}" fill="transparent"/>
-      <text class="ax" x="${cx}" y="${Y(x.tot)-6}" text-anchor="middle" style="fill:var(--txt);font-weight:600">${(x.tot/1000).toLocaleString('pl-PL',{maximumFractionDigits:1})}k</text>
+      <text class="ax" x="${cx}" y="${Y(x.tot)-6}" text-anchor="middle" style="fill:var(--txt);font-weight:600">${nfm(x.tot/1000,{maximumFractionDigits:1})}${escH(_t('d.tys_k'))}</text>
       <text class="ax" x="${cx}" y="${H-9}" text-anchor="middle" ${x.m===period?'style="fill:var(--acc);font-weight:700"':''}>${mLbl(x.m)}${x.m===CUR?'*':''}</text></g>`;
   });
   g+=`<line x1="${l}" x2="${W-r}" y1="${Y(fire)}" y2="${Y(fire)}" style="stroke:var(--txt);stroke-width:1.5;opacity:.55" stroke-dasharray="6 4"/>
-      <text class="ax" x="${W-r}" y="${Y(fire)-5}" text-anchor="end" style="fill:var(--txt)">cel ${fmt0(fire)} zł/mc</text>`;
-  C.innerHTML=`<div class="lgd">${L.map(([,lbl,col])=>`<span><i style="background:${col}"></i>${lbl}</span>`).join('')}<span>* w toku · klik = przejdź do miesiąca${pomin.length?` · pominięto ${mLbl(pomin[0])}–${mLbl(pomin[pomin.length-1])} (niepełne źródła)`:''}</span></div>
+      <text class="ax" x="${W-r}" y="${Y(fire)-5}" text-anchor="end" style="fill:var(--txt)">${escH(_t('d.cel_mc',{kwota:I.kwota(fire)}))}</text>`;
+  C.innerHTML=`<div class="lgd">${L.map(([,lbl,col])=>`<span><i style="background:${col}"></i>${escH(lbl)}</span>`).join('')}<span>${escH(_t('d.mies_leg'))}${pomin.length?escH(_t('d.mies_pomin',{od:mLbl(pomin[0]),do:mLbl(pomin[pomin.length-1])})):''}</span></div>
     <div class="chart" style="overflow-x:auto"><svg viewBox="0 0 ${W} ${H}" style="min-width:${W>1000?W+'px':'0'}">${g}</svg></div>`;
   C.querySelectorAll('.mbar').forEach(el=>{ const x=data[+el.dataset.i];
-    el.onmousemove=e=>tipShow(e,`<b>${mLong(x.m)}</b>`+L.slice().reverse().map(([k,lbl,col])=>tipRow(lbl,fmt0(x[k])+' zł',col)).join('')+tipRow('<b>Razem</b>','<b>'+fmt0(x.tot)+' zł</b>'));
+    el.onmousemove=e=>tipShow(e,`<b>${mLong(x.m)}</b>`+L.slice().reverse().map(([k,lbl,col])=>tipRow(escH(lbl),escH(I.kwota(x[k])),col)).join('')+tipRow('<b>'+escH(_t('d.razem'))+'</b>','<b>'+escH(I.kwota(x.tot))+'</b>'));
     el.onmouseleave=tipHide;
     el.onclick=()=>{ tipHide(); setPeriod(x.m); setView('przeglad'); scrollTo(0,0); };
   });
@@ -508,13 +509,13 @@ function renderTxList(){
   const sc=document.getElementById('tx-cat'), st=document.getElementById('tx-tag'), so=document.getElementById('tx-sort'), q=document.getElementById('tx-q');
   const sz=document.getElementById('tx-zr'), zs=[...new Set(DATA.out.map(zrOf))];
   const bs=[...new Set(zs.map(zrBank))].sort((a,b)=>BANK_ORDER.indexOf(a)-BANK_ORDER.indexOf(b));
-  sz.replaceChildren(h('option',{value:''},'Wszystkie banki i karty'), ...bs.map(b=>{ const sub=zs.filter(z=>zrBank(z)===b).sort();
+  sz.replaceChildren(h('option',{value:''},t('d.wszystkie_banki')), ...bs.map(b=>{ const sub=zs.filter(z=>zrBank(z)===b).sort();
     return [h('option',{value:'b:'+b},bankNazwa(b)),
       ...(zrPokazSub(sub)?sub.map(z=>h('option',{value:'z:'+z},'\u00a0\u00a0└ '+zrNazwa(z))):[])]; }).flat());
   if(![...sz.options].some(o=>o.value===txf.zr)) txf.zr='';
   sz.value=txf.zr; sz.onchange=()=>{txf.zr=sz.value;renderTxTable();};
-  sc.innerHTML='<option value="">Wszystkie kategorie</option>'+catList().map(c=>`<option value="${escH(c)}">${escH(c.replace(/_/g,' '))}</option>`).join('');
-  st.innerHTML='<option value="">Wszystkie tagi</option><option value="__brak">bez tagu</option>'+allTags().map(g=>`<option value="${escH(g)}">🔖 ${escH(g.replace(/_/g,' '))}</option>`).join('');
+  sc.innerHTML=`<option value="">${escH(t('d.wszystkie_kat'))}</option>`+catList().map(c=>`<option value="${escH(c)}">${escH(c.replace(/_/g,' '))}</option>`).join('');
+  st.innerHTML=`<option value="">${escH(t('d.wszystkie_tagi'))}</option><option value="__brak">${escH(t('d.bez_tagu'))}</option>`+allTags().map(g=>`<option value="${escH(g)}">🔖 ${escH(g.replace(/_/g,' '))}</option>`).join('');
   sc.value=txf.cat; st.value=txf.tag; so.value=txf.sort; if(q.value!==txf.q) q.value=txf.q;
   sc.onchange=()=>{txf.cat=sc.value;renderTxTable();}; st.onchange=()=>{txf.tag=st.value;renderTxTable();};
   so.onchange=()=>{txf.sort=so.value;renderTxTable();}; q.oninput=()=>{txf.q=q.value;renderTxTable();};
@@ -526,11 +527,11 @@ function renderTxTable(){
     && (!txf.tag || (txf.tag==='__brak' ? !tagsOf(t).length : tagsOf(t).includes(txf.tag))));
   rows.sort(txf.sort==='k'?(a,b)=>b.k-a.k:(a,b)=>a.d<b.d?1:(a.d>b.d?-1:b.k-a.k));
   const sum=sumK(rows.filter(t=>!isRefund(t))), LIM=400;
-  document.getElementById('tx-sum').textContent=`${rows.length} · ${fmt(sum)} zł · ${period==='all'?'cały okres':mLong(period)}`;
+  document.getElementById('tx-sum').textContent=`${rows.length} · ${I.kwota(sum,2)} · ${period==='all'?t('d.caly_okres'):mLong(period)}`;
   const T=document.getElementById('txlist');
   T.innerHTML=rows.length?`<div class="scroll tall"><table>${hdrTx}${rows.slice(0,LIM).map(txRow).join('')}</table></div>
-    ${rows.length>LIM?`<div class="muted" style="font-size:12px;margin-top:8px">Pokazano ${LIM} z ${rows.length} — zawęź filtr.</div>`:''}`
-    :'<div class="muted">Brak transakcji dla tych filtrów.</div>';
+    ${rows.length>LIM?`<div class="muted" style="font-size:12px;margin-top:8px">${tH('d.pokazano',{lim:LIM,n:rows.length})}</div>`:''}`
+    :`<div class="muted">${escH(t('d.brak_tx_filtry'))}</div>`;
   bindTxRows(T);
 }
 
@@ -540,30 +541,30 @@ function donutSVG(cats,total){
     const f=total?v/total:0, a2=a+f*2*Math.PI, large=(a2-a)>Math.PI?1:0;
     const x1=cx+r*Math.cos(a),y1=cy+r*Math.sin(a),x2=cx+r*Math.cos(a2),y2=cy+r*Math.sin(a2);
     const op=(selCat&&selCat!==cat)?0.25:1;
-    seg+=`<path d="M ${x1.toFixed(1)} ${y1.toFixed(1)} A ${r} ${r} 0 ${large} 1 ${x2.toFixed(1)} ${y2.toFixed(1)} L ${cx} ${cy} Z" fill="${catColor(cat)}" opacity="${op}" data-cat="${escH(cat)}"><title>${escH(cat.replace(/_/g,' '))}: ${fmt(v)} zł</title></path>`;
+    seg+=`<path d="M ${x1.toFixed(1)} ${y1.toFixed(1)} A ${r} ${r} 0 ${large} 1 ${x2.toFixed(1)} ${y2.toFixed(1)} L ${cx} ${cy} Z" fill="${catColor(cat)}" opacity="${op}" data-cat="${escH(cat)}"><title>${escH(cat.replace(/_/g,' '))}: ${escH(I.kwota(v,2))}</title></path>`;
     a=a2;
   });
   return `<svg viewBox="0 0 200 200" class="donut">${seg}<circle cx="${cx}" cy="${cy}" r="${ri}" class="donut-hole"/>`
     +`<text x="${cx}" y="${cy-2}" text-anchor="middle" class="donut-total">${fmt0(total)}</text>`
-    +`<text x="${cx}" y="${cy+16}" text-anchor="middle" class="donut-sub">zł</text></svg>`;
+    +`<text x="${cx}" y="${cy+16}" text-anchor="middle" class="donut-sub">${escH(I.symbol())}</text></svg>`;
 }
 
 function renderDonut(){
   const cats=byCat(outRows()), total=cats.reduce((s,x)=>s+x[1],0), mx=cats.length?cats[0][1]:1;
-  document.getElementById('cat-hint').textContent = period==='all'?'cały okres':mLong(period);
+  document.getElementById('cat-hint').textContent = period==='all'?t('d.caly_okres'):mLong(period);
   // Δ vs średnia z poprzednich pełnych miesięcy (pro rata dla bieżącego)
   let base=null;
   if(period!=='all'){ const bm=prevFull(period,CFG.n), f=monthFrac(period);
     if(bm.length){ base={}; DATA.out.forEach(t=>{ if(!isRefund(t)&&bm.includes(t.d.slice(0,7))) base[effCat(t)]=(base[effCat(t)]||0)+t.k/bm.length*f; }); } }
   const dcell=(cat,v)=>{ if(!base) return '<span class="leg-d"></span>'; const b0=base[cat]||0, d=v-b0;
     if(Math.abs(d)<Math.max(b0*.1,20)) return '<span class="leg-d flat">≈</span>';
-    return `<span class="leg-d ${d>0?'up':'down'}" title="średnio ${fmt0(b0)} zł">${d>0?'+':'−'}${fmt0(Math.abs(d))}</span>`; };
+    return `<span class="leg-d ${d>0?'up':'down'}" title="${tH('d.srednio',{kwota:I.kwota(b0)})}">${d>0?'+':'−'}${fmt0(Math.abs(d))}</span>`; };
   document.getElementById('donut').innerHTML=donutSVG(cats,total);
   document.getElementById('legend').innerHTML=cats.map(([cat,v])=>`
     <div class="leg-row ${selCat===cat?'sel':''}" data-cat="${escH(cat)}">
       <span class="chev">▸</span><span class="dot" style="background:${catColor(cat)}"></span>
       <span class="leg-name">${escH(cat.replace(/_/g,' '))}<div class="mb"><i style="width:${(100*v/mx).toFixed(1)}%;background:${catColor(cat)}"></i></div></span>
-      <span class="leg-val">${fmt(v)} zł</span>${dcell(cat,v)}
+      <span class="leg-val">${escH(I.kwota(v,2))}</span>${dcell(cat,v)}
       <span class="leg-pct">${total?Math.round(100*v/total):0}%</span></div>`).join('');
   const pick=e=>{const c=e.currentTarget.dataset.cat;selCat=(selCat===c?null:c);renderDonut();renderDrill();};
   document.querySelectorAll('#legend .leg-row').forEach(el=>el.onclick=pick);
@@ -573,7 +574,7 @@ function renderDonut(){
 // Przegląd: wydatki wg banku → karty/rachunku; klik = Transakcje z filtrem tego źródła
 function renderZrodla(){
   const E=document.getElementById('zrodla'); if(!E) return;
-  document.getElementById('zr-scope').textContent=period==='all'?'cały okres':mLong(period);
+  document.getElementById('zr-scope').textContent=period==='all'?t('d.caly_okres'):mLong(period);
   const rows=outRows(), total=sumK(rows), B={};
   for(const t of rows){ const z=zrOf(t), x=B[zrBank(z)]=B[zrBank(z)]||{s:0,zr:{}}; x.s+=t.k; x.zr[z]=(x.zr[z]||0)+t.k; }
   // Δ vs średnia z poprzednich pełnych miesięcy (pro rata dla bieżącego) — jak w kategoriach
@@ -583,13 +584,13 @@ function renderZrodla(){
       const z=zrOf(t), v=t.k/bm.length*f; base['b:'+zrBank(z)]=(base['b:'+zrBank(z)]||0)+v; base['z:'+z]=(base['z:'+z]||0)+v; }); } }
   const dcell=(key,v)=>{ if(!base) return h('span',{class:'leg-d'}); const b0=base[key]||0, d=v-b0;
     if(Math.abs(d)<Math.max(b0*.1,20)) return h('span',{class:'leg-d flat'},'≈');
-    return h('span',{class:'leg-d '+(d>0?'up':'down'),title:`średnio ${fmt0(b0)} zł`},(d>0?'+':'−')+fmt0(Math.abs(d))); };
+    return h('span',{class:'leg-d '+(d>0?'up':'down'),title:t('d.srednio',{kwota:I.kwota(b0)})},(d>0?'+':'−')+fmt0(Math.abs(d))); };
   const mx=Math.max(1,...Object.values(B).map(x=>x.s));
   const row=(key,label,v,kolor,sub)=>{
-    const el=h('div',{class:'leg-row'+(sub?' zr-sub':'')+(txf.zr===key?' sel':''),'data-zr':key,title:'Klik = transakcje z tego źródła'},
+    const el=h('div',{class:'leg-row'+(sub?' zr-sub':'')+(txf.zr===key?' sel':''),'data-zr':key,title:t('d.klik_zrodlo')},
       h('span',{class:'chev'},sub?'':'▸'), h('span',{class:'dot',style:`background:${kolor}`}),
       h('span',{class:'leg-name'},label,h('div',{class:'mb'},h('i',{style:`width:${(100*v/mx).toFixed(1)}%;background:${kolor}`}))),
-      h('span',{class:'leg-val'},fmt(v)+' zł'), dcell(key,v),
+      h('span',{class:'leg-val'},I.kwota(v,2)), dcell(key,v),
       h('span',{class:'leg-pct'},(total?Math.round(100*v/total):0)+'%'));
     el.onclick=()=>{ txf.zr=key; setView('transakcje'); renderTxList(); scrollTo(0,0); };
     return el;
@@ -599,13 +600,13 @@ function renderZrodla(){
     const zr=Object.entries(x.zr).sort((p,q)=>q[1]-p[1]);
     return [row('b:'+b,bankNazwa(b),x.s,zrKolor(b),false),
       ...(zrPokazSub(zr.map(([z])=>z))?zr.map(([z,v])=>row('z:'+z,zrNazwa(z),v,zrKolor(b),true)):[])];
-  }).flat():[h('div',{class:'muted'},'Brak wydatków w tym okresie.')]));
+  }).flat():[h('div',{class:'muted'},t('d.brak_wyd_okres'))]));
 }
 
 // lista kategorii do dropdownu (z reguł + własne + ewentualne z override)
 // alfabetycznie (polskie znaki), „Inne nieskategoryzowane" zawsze na końcu
-const INNE='Inne_nieskategoryzowane';
-function sortCats(a){ return [...a].sort((x,y)=>(x===INNE)-(y===INNE) || x.localeCompare(y,'pl',{sensitivity:'base'})); }
+const INNE=DATA.inne||'Inne_nieskategoryzowane';
+function sortCats(a){ return [...a].sort((x,y)=>(x===INNE)-(y===INNE) || x.localeCompare(y,I.locale(),{sensitivity:'base'})); }
 function catList(){
   const s=new Set(CAT_ORDER);
   wlasne.forEach(c=>s.add(c));
@@ -615,19 +616,20 @@ function catList(){
 function catSelect(t){
   const cur=effCat(t), over=!!overrides[t.id];
   const opts=catList().map(c=>`<option value="${escH(c)}" ${c===cur?'selected':''}>${escH(c.replace(/_/g,' '))}</option>`).join('')
-    +`<option value="__nowa__">➕ nowa kategoria…</option>`;
+    +`<option value="__nowa__">${escH(_t('d.nowa_kat'))}</option>`;
   return `<select class="catsel ${over?'over':''}" data-id="${enc(t.id)}" data-orig="${escH(t.c)}"
-    title="${over?'ręcznie przypisane (klik regułowej = powrót)':'kategoria z reguły'}">${opts}</select>`;
+    title="${escH(_t(over?'d.kat_reczna':'d.kat_z_reguly'))}">${opts}</select>`;
 }
-const hdrTx='<tr><th></th><th>Data</th><th>Opis</th><th>Kategoria</th><th>Tagi</th><th class="num">Kwota</th></tr>';
+const thCols=`<th>${escH(t('d.th_data'))}</th><th>${escH(t('d.th_opis'))}</th><th>${escH(t('d.th_kat'))}</th><th>${escH(t('d.th_tagi'))}</th><th class="num">${escH(t('d.th_kwota'))}</th>`;
+const hdrTx=`<tr><th></th>${thCols}</tr>`;
 function txRow(t){
   const r=isRefund(t);
   return `<tr class="txrow ${r?'refunded':''}" data-id="${enc(t.id)}">
-    <td class="chk" title="Klik = oznacz do zwrotu">${r?'↩︎':'○'}</td>
+    <td class="chk" title="${escH(_t('d.klik_zwrot'))}">${r?'↩︎':'○'}</td>
     <td>${escH(t.d)}</td><td title="${escH(zrPelna(zrOf(t)))}">${escH(t.o)}</td><td class="catcell">${catSelect(t)}</td>
     <td class="tagcell">${tagsOf(t).map(g=>isAutoTag(t,g)
-      ? `<span class="ttag auto" data-tag="${enc(g)}" title="Tag z reguły — klik = wyłącz dla tej transakcji">${escH(g.replace(/_/g,' '))}</span>`
-      : `<span class="ttag" data-tag="${enc(g)}" title="Klik = zdejmij tag">${escH(g.replace(/_/g,' '))}</span>`).join('')}<span class="tagadd" title="Dodaj tag">+🔖</span></td>
+      ? `<span class="ttag auto" data-tag="${enc(g)}" title="${escH(_t('d.tag_reg_title'))}">${escH(g.replace(/_/g,' '))}</span>`
+      : `<span class="ttag" data-tag="${enc(g)}" title="${escH(_t('d.klik_zdejmij'))}">${escH(g.replace(/_/g,' '))}</span>`).join('')}<span class="tagadd" title="${escH(_t('d.dodaj_tag'))}">+🔖</span></td>
     <td class="num">${fmt(t.k)}</td></tr>`;
 }
 function bindTxRows(root){
@@ -645,7 +647,7 @@ function bindTxRows(root){
   root.querySelectorAll('.txrow .tagadd').forEach(el=>el.onclick=e=>{
     e.stopPropagation();
     const ist=allTags();
-    const tag=normTag(prompt('Tag'+(ist.length?` (istniejące: ${ist.join(', ')})`:'')+':', selTag||ist[ist.length-1]||''));
+    const tag=normTag(prompt(ist.length?t('d.prompt_tag_ist',{lista:ist.join(', ')}):t('d.prompt_tag'), selTag||ist[ist.length-1]||''));
     if(tag) addTag([dec(el.closest('.txrow').dataset.id)], tag);
   });
   root.querySelectorAll('.catsel').forEach(sel=>{
@@ -654,7 +656,7 @@ function bindTxRows(root){
       e.stopPropagation();
       const id=dec(sel.dataset.id);
       if(sel.value==='__nowa__'){
-        const nazwa=await dodajKategorie(prompt('Nazwa nowej kategorii:',''));
+        const nazwa=await dodajKategorie(prompt(t('d.prompt_nowa_kat'),''));
         if(!nazwa){ renderAll(); return; }      // anulowane — cofnij wybór w selekcie
         await setCat(id, nazwa, sel.dataset.orig);
         await proponujRegule(id, nazwa);
@@ -675,10 +677,10 @@ function renderDrill(){
   const nref=rows.filter(isRefund).length;
   D.innerHTML=`<div class="drill">
     <div class="drill-head"><span class="t" style="color:${catColor(selCat)}">${escH(selCat.replace(/_/g,' '))}</span>
-      <span class="s">${rows.length} transakcji · ${fmt(sum)} zł${nref?` · ${nref} do zwrotu`:''}</span></div>
-    <div class="scroll"><table><tr><th></th><th>Data</th><th>Opis</th><th>Kategoria</th><th>Tagi</th><th class="num">Kwota</th></tr>
+      <span class="s">${tH('d.n_tx',{n:rows.length})} · ${escH(I.kwota(sum,2))}${nref?` · ${tH('d.n_do_zwrotu',{n:nref})}`:''}</span></div>
+    <div class="scroll"><table>${hdrTx}
     ${rows.map(txRow).join('')}</table></div>
-    <div class="muted" style="font-size:12px;margin-top:8px">Zmień kategorię w rozwijanej liście · klik w wiersz = do zwrotu.</div></div>`;
+    <div class="muted" style="font-size:12px;margin-top:8px">${escH(t('d.drill_foot'))}</div></div>`;
   bindTxRows(D);
 }
 
@@ -687,23 +689,23 @@ function weeksSVG(){
   rows.forEach(t=>{const d=new Date(t.d);const on=new Date(d);on.setDate(d.getDate()-((d.getDay()+6)%7));
     const k=on.toISOString().slice(0,10);m[k]=(m[k]||0)+t.k;});
   const it=Object.entries(m).sort();
-  if(!it.length)return '<div class="muted">brak danych</div>';
+  if(!it.length)return `<div class="muted">${escH(t('d.brak_danych'))}</div>`;
   const mx=Math.max(...it.map(x=>x[1]))||1,W=Math.max(360,it.length*70),H=200,pad=30,bw=44;
   const gap=(W-2*pad)/it.length; let s='';
   it.forEach(([wk,v],i)=>{const h=v/mx*(H-60),x=pad+i*gap+(gap-bw)/2,y=H-30-h;
-    s+=`<rect x="${x.toFixed(0)}" y="${y.toFixed(0)}" width="${bw}" height="${h.toFixed(0)}" rx="4" class="bar"><title>tydz. od ${wk}: ${fmt(v)} zł</title></rect>`
+    s+=`<rect x="${x.toFixed(0)}" y="${y.toFixed(0)}" width="${bw}" height="${h.toFixed(0)}" rx="4" class="bar"><title>${tH('d.tydz_od',{wk,kwota:I.kwota(v,2)})}</title></rect>`
       +`<text x="${(x+bw/2).toFixed(0)}" y="${(y-5).toFixed(0)}" text-anchor="middle" class="bar-val">${fmt0(v)}</text>`
       +`<text x="${(x+bw/2).toFixed(0)}" y="${H-10}" text-anchor="middle" class="bar-lbl">${wk.slice(5)}</text>`;});
   return `<svg viewBox="0 0 ${W} ${H}" class="bars" style="min-width:${W}px">${s}</svg>`;
 }
-function renderWeeks(){document.getElementById('weeks-scope').textContent=period==='all'?'cały okres':mLong(period);document.getElementById('weeks').innerHTML=`<div style="overflow-x:auto">${weeksSVG()}</div>`;}
+function renderWeeks(){document.getElementById('weeks-scope').textContent=period==='all'?t('d.caly_okres'):mLong(period);document.getElementById('weeks').innerHTML=`<div style="overflow-x:auto">${weeksSVG()}</div>`;}
 
 function renderTop(){
   const rows=[...outRows()].sort((a,b)=>b.k-a.k).slice(0,12);
-  document.getElementById('top-scope').textContent = period==='all'?'cały okres':mLong(period);
+  document.getElementById('top-scope').textContent = period==='all'?t('d.caly_okres'):mLong(period);
   const T=document.getElementById('top');
   T.innerHTML=`<div class="scroll"><table>
-    <tr><th></th><th>Data</th><th>Opis</th><th>Kategoria</th><th>Tagi</th><th class="num">Kwota</th></tr>
+    ${hdrTx}
     ${rows.map(txRow).join('')}</table></div>`;
   bindTxRows(T);
 }
@@ -714,22 +716,19 @@ function renderRefunds(){
   const sum=rows.reduce((s,t)=>s+t.k,0);
   card.style.display = rows.length?'':'none';
   if(!rows.length){R.innerHTML='';return;}
-  document.getElementById('refunds-sum').textContent = fmt(sum)+' zł';
+  document.getElementById('refunds-sum').textContent = I.kwota(sum,2);
   R.innerHTML=`<div class="scroll"><table>
-    <tr><th></th><th>Data</th><th>Opis</th><th>Kategoria</th><th>Tagi</th><th class="num">Kwota</th></tr>
+    ${hdrTx}
     ${rows.map(txRow).join('')}</table></div>
-    <div class="muted" style="font-size:12px;margin-top:8px">Klik w wiersz = przywróć do wydatków.</div>`;
+    <div class="muted" style="font-size:12px;margin-top:8px">${escH(t('d.zw_foot'))}</div>`;
   bindTxRows(R);
 }
-
-const MNAZ=['sty','lut','mar','kwi','maj','cze','lip','sie','wrz','paź','lis','gru'];
-const mLbl=m=>{const[y,mo]=m.split('-');return MNAZ[+mo-1]+' '+y.slice(2);};
 
 // #2 PORÓWNANIE MIESIĘCY — tabela kategoria × miesiąc (wszystkie miesiące, niezależne od zakładki)
 function renderCompare(){
   const C=document.getElementById('compare');
   const ms=months;                                  // wszystkie miesiące z danych
-  if(ms.length<2){ C.innerHTML='<div class="muted">Potrzeba ≥2 miesięcy danych do porównania. Wrzuć kolejny eksport.</div>'; return; }
+  if(ms.length<2){ C.innerHTML=`<div class="muted">${escH(t('d.potrzeba_2'))}</div>`; return; }
   // suma per (kategoria, miesiąc), bez zwrotów
   const rows=DATA.out.filter(t=>!isRefund(t));
   const cats={}, mtot={};
@@ -742,15 +741,15 @@ function renderCompare(){
   const arrow=(cur,prev)=>{if(prev==null||prev===0)return '';const d=cur-prev;
     if(Math.abs(d)<Math.max(prev*0.05,5))return '<span class="flat">→</span>';
     return d>0?`<span class="up">▲ ${fmt0(d)}</span>`:`<span class="down">▼ ${fmt0(-d)}</span>`;};
-  const head=`<tr><th>Kategoria</th>${ms.map(m=>`<th class="num">${mLbl(m)}</th>`).join('')}<th class="num">trend</th></tr>`;
+  const head=`<tr><th>${escH(t('d.th_kat'))}</th>${ms.map(m=>`<th class="num">${mLbl(m)}</th>`).join('')}<th class="num">${escH(t('d.trend'))}</th></tr>`;
   const body=order.map(c=>{
     const cells=ms.map(m=>`<td class="num">${cats[c][m]?fmt0(cats[c][m]):'·'}</td>`).join('');
     const last=cats[c][LM[LM.length-1]]||0, prev=cats[c][LM[LM.length-2]]||0;
     return `<tr><td><span class="dot" style="display:inline-block;background:${catColor(c)}"></span> ${escH(c.replace(/_/g,' '))}</td>${cells}<td class="num">${arrow(last,prev)}</td></tr>`;
   }).join('');
-  const totrow=`<tr class="totrow"><td>RAZEM</td>${ms.map(m=>`<td class="num">${fmt0(mtot[m])}</td>`).join('')}<td class="num">${arrow(mtot[LM[LM.length-1]],mtot[LM[LM.length-2]])}</td></tr>`;
+  const totrow=`<tr class="totrow"><td>${escH(t('d.razem_caps'))}</td>${ms.map(m=>`<td class="num">${fmt0(mtot[m])}</td>`).join('')}<td class="num">${arrow(mtot[LM[LM.length-1]],mtot[LM[LM.length-2]])}</td></tr>`;
   C.innerHTML=`<div class="scroll"><table class="cmp">${head}${body}${totrow}</table></div>
-    <div class="muted" style="font-size:12px;margin-top:8px">Trend = ostatni pełny miesiąc vs poprzedni.</div>`;
+    <div class="muted" style="font-size:12px;margin-top:8px">${escH(t('d.trend_foot'))}</div>`;
 }
 
 // #3 SUBSKRYPCJE / RACHUNKI CYKLICZNE — powtarzalne obciążenia (ten sam merchant, ≥2 miesiące)
@@ -780,7 +779,7 @@ function detectSubs(){
   for(const k in grp){
     if(seen.has(k)) continue;
     const g=grp[k];
-    if(!SUB_CATS.has(effCat(g[0]))) continue;
+    if(!SUB_CATS.has(effCat(g[0])) && globalThis.W.reguly.rola(effCat(g[0]))!=='subskrypcje') continue;
     const ks=g.map(t=>t.k).sort((a,b)=>a-b), med=ks[Math.floor(ks.length/2)];
     const mset=new Set(g.map(t=>t.d.slice(0,7)));
     subs.push({name:g[0].o.split(',')[0].slice(0,32),med,mies:mset.size,cat:effCat(g[0]),src:'kat'});
@@ -790,22 +789,22 @@ function detectSubs(){
 function renderSubs(){
   const S=document.getElementById('subs');
   const subs=detectSubs();
-  if(!subs.length){ S.innerHTML='<div class="muted">Brak wykrytych stałych/cyklicznych obciążeń.</div>'; document.getElementById('subs-sum').textContent=''; return; }
+  if(!subs.length){ S.innerHTML=`<div class="muted">${escH(t('d.brak_subs'))}</div>`; document.getElementById('subs-sum').textContent=''; return; }
   // koszt miesięczny: pozycje ≤60 zł traktuj jako miesięczne; większe (>100) prawdopodobnie roczne — nie sumuj do /mc
   const mies=subs.filter(x=>x.med<=60);
   const roczne=subs.filter(x=>x.med>60);
   const perMc=mies.reduce((s,x)=>s+x.med,0);
-  document.getElementById('subs-sum').textContent='~'+fmt0(perMc)+' zł/mc';
-  const badge=s=>s==='cykl'?'<span class="tag" style="margin:0">wykryty cykl</span>':'<span class="tag" style="margin:0">wg kategorii</span>';
+  document.getElementById('subs-sum').textContent='~'+I.kwota(perMc)+t('d.na_mc');
+  const badge=s=>`<span class="tag" style="margin:0">${escH(t(s==='cykl'?'d.sub_cykl':'d.sub_kat'))}</span>`;
   const row=x=>`<tr><td>${escH(x.name)}</td><td><span class="dot" style="display:inline-block;background:${catColor(x.cat)}"></span> ${escH(x.cat.replace(/_/g,' '))}</td>
       <td class="num">${fmt(x.med)}</td><td>${badge(x.src)}</td></tr>`;
   S.innerHTML=`<div class="scroll"><table>
-    <tr><th>Merchant</th><th>Kategoria</th><th class="num">Kwota</th><th>Sygnał</th></tr>
+    <tr><th>${escH(t('d.th_merchant'))}</th><th>${escH(t('d.th_kat'))}</th><th class="num">${escH(t('d.th_kwota'))}</th><th>${escH(t('d.th_sygnal'))}</th></tr>
     ${mies.map(row).join('')}
-    ${roczne.length?`<tr class="totrow"><td colspan="4" class="muted" style="font-weight:400">— większe/prawdopodobnie roczne (nie liczone do zł/mc) —</td></tr>`:''}
+    ${roczne.length?`<tr class="totrow"><td colspan="4" class="muted" style="font-weight:400">${escH(t('d.sub_roczne',{sym:I.symbol()}))}</td></tr>`:''}
     ${roczne.map(row).join('')}</table></div>
     <div class="muted" style="font-size:12px;margin-top:8px">
-      „zł/mc" = suma pozycji ≤60 zł (miesięczne). <b>Do przeglądu pod FIRE:</b> każde 50 zł/mc = ~15 tys. kapitału. Zweryfikuj — heurystyka może złapać też regularne zakupy.</div>`;
+      ${tH('d.sub_foot',{sym:I.symbol(),limit:I.kwota(60),k50:I.kwota(50),kap:fmtM(15000)})}</div>`;
 }
 
 // #3 ZARZĄDZANIE KATEGORIAMI — własne (dodane tu) obok tych z reguł kategorie.yaml
@@ -816,15 +815,15 @@ function renderKategorie(){
   const zReg=(DATA.kategorie||[]);
   const chip=(c,wl)=>`<span class="chip ${wl?'':'rule'}" style="border-left:3px solid ${catColor(c)}">
       ${escH(c.replace(/_/g,' '))}<span class="n">${licz[c]||0}</span>
-      ${wl?`<span class="x" data-del="${enc(c)}" title="Usuń kategorię">×</span>`:''}</span>`;
+      ${wl?`<span class="x" data-del="${enc(c)}" title="${escH(t('d.usun_kat_title'))}">×</span>`:''}</span>`;
   K.innerHTML=`
-    <div class="muted" style="font-size:12px">Własne — dodajesz i usuwasz tutaj, przypisujesz rozwijaną listą przy transakcji.</div>
-    <div class="chips">${wlasne.length?sortCats(wlasne).map(c=>chip(c,true)).join(''):'<span class="muted" style="font-size:12px">brak — dodaj poniżej</span>'}</div>
+    <div class="muted" style="font-size:12px">${escH(t('d.kat_wlasne_opis'))}</div>
+    <div class="chips">${wlasne.length?sortCats(wlasne).map(c=>chip(c,true)).join(''):`<span class="muted" style="font-size:12px">${escH(t('d.brak_dodaj'))}</span>`}</div>
     <div class="addcat">
-      <input id="cat-new" type="text" placeholder="np. Prezenty" maxlength="40">
-      <button class="tab" id="cat-add">➕ Dodaj kategorię</button>
+      <input id="cat-new" type="text" placeholder="${escH(t('d.ph_prezenty'))}" maxlength="40">
+      <button class="tab" id="cat-add">${escH(t('d.dodaj_kat'))}</button>
     </div>
-    <div class="muted" style="font-size:12px;margin-top:14px">Z reguł (<code>kategorie.yaml</code>) — automat; edytuj plik, by zmienić dopasowania.</div>
+    <div class="muted" style="font-size:12px;margin-top:14px">${tH('d.kat_z_regul_opis')}</div>
     <div class="chips">${sortCats(zReg).map(c=>chip(c,false)).join('')}</div>`;
   const add=async()=>{
     const inp=document.getElementById('cat-new');
@@ -837,38 +836,34 @@ function renderKategorie(){
 }
 
 // REGUŁY — własne (z aplikacji) + pobranie kategorie.yaml do edycji
-const NAGL_YAML='# Reguły kategorii — aplikacja Wydatki\n'
-  +'# Zapisz jako ustawienia/kategorie.yaml w swoim folderze i wczytaj folder ponownie.\n'
-  +'# Kategoria: lista wzorców (fragment opisu, wielkość liter bez znaczenia, składnia wyrażeń regularnych).\n'
-  +'# Pierwsza pasująca kategoria wygrywa — kolejność ma znaczenie. _wyklucz: pomijane, _tagi: tagi automatyczne,\n'
-  +'# _wplywy: grupy wpływów. Reguły dodane w aplikacji są w reguly_wlasne.json i mają pierwszeństwo.\n\n';
+const naglYaml=()=>t('d.nagl_yaml');
 function renderReguly(){
   const E=document.getElementById('reguly'); if(!E) return;
   const wiersze=reguly.map((r,i)=>{ const test=testerWzorca(r.wzorzec), n=test?DATA.out.filter(test).length:0;
     return `<tr><td><code>${escH(odWzorca(r.wzorzec))}</code></td><td><span class="dot" style="display:inline-block;background:${catColor(r.kategoria)}"></span> ${escH(r.kategoria.replace(/_/g,' '))}</td>
-      <td class="num">${n}</td><td><span class="tagadd reg-del" data-i="${i}" title="Usuń regułę">🗑</span></td></tr>`; }).join('');
-  E.innerHTML=`<div class="muted" style="font-size:12px">Reguła = fragment opisu → kategoria. Twoje reguły mają pierwszeństwo przed regułami z pliku.
-      Najprościej: zmień kategorię przy transakcji — aplikacja zaproponuje regułę dla podobnych.</div>
-    ${reguly.length?`<div class="scroll"><table><tr><th>Fragment opisu</th><th>Kategoria</th><th class="num">Transakcji</th><th></th></tr>${wiersze}</table></div>`
-      :'<div class="muted" style="font-size:12px;margin:8px 0">Brak własnych reguł.</div>'}
+      <td class="num">${n}</td><td><span class="tagadd reg-del" data-i="${i}" title="${escH(t('d.usun_regule_title'))}">🗑</span></td></tr>`; }).join('');
+  E.innerHTML=`<div class="muted" style="font-size:12px">${escH(t('d.reguly_opis'))}</div>
+    ${reguly.length?`<div class="scroll"><table><tr><th>${escH(t('d.th_fragment'))}</th><th>${escH(t('d.th_kat'))}</th><th class="num">${escH(t('d.th_transakcji'))}</th><th></th></tr>${wiersze}</table></div>`
+      :`<div class="muted" style="font-size:12px;margin:8px 0">${escH(t('d.brak_regul'))}</div>`}
     <div class="addcat" style="margin-top:8px">
-      <input id="reg-wz" placeholder="fragment opisu, np. stokrotka" maxlength="200" style="min-width:180px">
+      <input id="reg-wz" placeholder="${escH(t('d.ph_regula'))}" maxlength="200" style="min-width:180px">
       <select id="reg-kat" class="catsel" style="max-width:220px">${catList().map(c=>`<option value="${escH(c)}">${escH(c.replace(/_/g,' '))}</option>`).join('')}</select>
-      <button class="tab" id="reg-add">➕ Dodaj regułę</button></div>
-    <div class="muted" style="font-size:12px;margin-top:12px">Reguły z pliku: ${DATA.reguly_z_pliku?'<code>kategorie.yaml</code> z Twojego folderu':'wbudowane (domyślne)'}
-      · <button class="lnk" id="reg-pobierz">pobierz kategorie.yaml do edycji</button></div>`;
+      <button class="tab" id="reg-add">${escH(t('d.dodaj_regule'))}</button></div>
+    <div class="muted" style="font-size:12px;margin-top:12px">${escH(t('d.reg_z_pliku'))}${DATA.reguly_z_pliku?tH('d.reg_plik_user'):escH(t('d.reg_plik_wbud'))}
+      · <button class="lnk" id="reg-pobierz">${escH(t('d.reg_pobierz'))}</button></div>`;
   E.querySelectorAll('.reg-del').forEach(el=>el.onclick=()=>usunRegule(+el.dataset.i));
   document.getElementById('reg-add').onclick=async()=>{
     const tekst=document.getElementById('reg-wz').value, kat=document.getElementById('reg-kat').value;
     const test=testerWzorca(naWzorzec(tekst));
-    if(!tekst.trim()||!test){ alert('Podaj fragment opisu.'); return; }
+    if(!tekst.trim()||!test){ alert(t('d.podaj_fragment')); return; }
     const n=DATA.out.filter(test).length;
-    if(!confirm(`Reguła „${tekst.trim()}” → ${kat.replace(/_/g,' ')} obejmie teraz ${n} transakcji (i przyszłe). Dodać?`)) return;
+    if(!confirm(t('d.regula_obejmie',{tekst:tekst.trim(),kat:kat.replace(/_/g,' '),n}))) return;
     await dodajRegule(tekst, kat);
   };
   document.getElementById('reg-pobierz').onclick=()=>{
     const y=DATA.reguly_yaml||'';
-    globalThis.W.pobierz('kategorie.yaml', y.startsWith(NAGL_YAML.split('\n')[0])?y:NAGL_YAML+y);
+    const pierwsze=['pl','en'].map(j=>String(globalThis.W.i18n.SLOWNIK[j]['d.nagl_yaml']).split('\n')[0]);   // nagłówek w dowolnym języku = już jest
+    globalThis.W.pobierz('kategorie.yaml', pierwsze.some(l=>y.startsWith(l))?y:naglYaml()+y);
   };
 }
 
@@ -876,24 +871,32 @@ function renderReguly(){
 function renderUstawienia(){
   const E=document.getElementById('ustawienia-fire'); if(!E) return;
   const v=(k,d)=>konf[k]!==undefined?konf[k]:d;
-  E.innerHTML=`<div class="muted" style="font-size:12px">Używane w karcie FIRE i w podziale „koszt życia”. Puste pole = wartość domyślna.</div>
+  const jez=konf.jezyk||I.jezyk();
+  E.innerHTML=`<div class="muted" style="font-size:12px">${escH(t('d.u_opis'))}</div>
     <div class="form-ust">
-      <label>Cel dochodu pasywnego (zł/mc)<input id="u-cel" type="number" min="0" step="100" value="${+v('fire_cel_mc',5000)}"></label>
-      <label>Stopa wypłaty (% rocznie)<input id="u-swr" type="number" min="0.5" max="20" step="0.1" value="${+(v('fire_swr',0.04)*100).toFixed(2)}"></label>
-      <label>Wydatek jednorazowy od (zł)<input id="u-jedn" type="number" min="0" step="50" value="${+v('prog_jednorazowych',300)}"></label>
-      <label>Średnia z ilu pełnych miesięcy<input id="u-n" type="number" min="1" max="36" step="1" value="${+v('miesiecy_podsumowania',4)}"></label>
-      <label>Tagi dzieci (po przecinku)<input id="u-dzieci" maxlength="400" value="${escH(v('tagi_dzieci',['Dzieci']).join(', '))}"></label>
-      <label>Tagi wydarzeń (po przecinku)<input id="u-wyd" maxlength="400" value="${escH(v('tagi_wydarzen',[]).join(', '))}"></label>
+      <label>${escH(t('d.u_jezyk'))}<select id="u-jezyk"><option value="pl"${jez==='pl'?' selected':''}>Polski</option><option value="en"${jez==='en'?' selected':''}>English</option></select></label>
+      <label>${escH(t('d.u_waluta'))}<input id="u-waluta" maxlength="3" pattern="[A-Za-z]{3}" style="text-transform:uppercase" value="${escH(konf.waluta||'')}" placeholder="${escH(t('d.u_waluta_auto',{waluta:DATA.waluta||'PLN'}))}"></label>
+      <label>${escH(t('d.u_cel',{sym:I.symbol()}))}<input id="u-cel" type="number" min="0" step="100" value="${+v('fire_cel_mc',5000)}"></label>
+      <label>${escH(t('d.u_swr'))}<input id="u-swr" type="number" min="0.5" max="20" step="0.1" value="${+(v('fire_swr',0.04)*100).toFixed(2)}"></label>
+      <label>${escH(t('d.u_jedn',{sym:I.symbol()}))}<input id="u-jedn" type="number" min="0" step="50" value="${+v('prog_jednorazowych',300)}"></label>
+      <label>${escH(t('d.u_n'))}<input id="u-n" type="number" min="1" max="36" step="1" value="${+v('miesiecy_podsumowania',4)}"></label>
+      <label>${escH(t('d.u_dzieci'))}<input id="u-dzieci" maxlength="400" value="${escH(v('tagi_dzieci',CFG.syn).join(', '))}"></label>
+      <label>${escH(t('d.u_wyd'))}<input id="u-wyd" maxlength="400" value="${escH(v('tagi_wydarzen',[]).join(', '))}"></label>
     </div>
-    <button class="tab" id="u-zapisz">💾 Zapisz ustawienia</button>`;
+    <button class="tab" id="u-zapisz">${escH(t('d.u_zapisz'))}</button>`;
   document.getElementById('u-zapisz').onclick=async()=>{
     const val=id=>document.getElementById(id).value.trim(), lista=id=>val(id).split(',').map(x=>x.trim()).filter(Boolean);
     const k=konf.nazwy_zrodel?{nazwy_zrodel:konf.nazwy_zrodel}:{};   // nazwy kart zapisuje osobny formularz
+    k.jezyk=document.getElementById('u-jezyk').value;
+    const wal=val('u-waluta').toUpperCase(); if(wal) k.waluta=wal;          // puste = autodetekcja z plików
+    // bez kategorie.yaml zmiana języka zmienia nazwy kategorii domyślnych — ręczne zmiany zostają przy starych
+    const reczne=Object.keys(overrides).length||budzety.length||wlasne.length||reguly.length;
+    if(k.jezyk!==I.jezyk() && !DATA.reguly_z_pliku && reczne && !confirm(t('d.zmiana_jezyka'))) return;
     const liczba=(id,klucz,mn=1)=>{ if(val(id)!=='') k[klucz]=Number(val(id))*mn; };
     liczba('u-cel','fire_cel_mc'); liczba('u-swr','fire_swr',0.01); liczba('u-jedn','prog_jednorazowych'); liczba('u-n','miesiecy_podsumowania');
     if(k.fire_swr!==undefined) k.fire_swr=Math.round(k.fire_swr*10000)/10000;
     k.tagi_dzieci=lista('u-dzieci'); k.tagi_wydarzen=lista('u-wyd');
-    if(await zapiszUst('/api/konfiguracja',k,'ustawienia')){ konf=k; wPrzeladuj(); }
+    if(await zapiszUst('/api/konfiguracja',k,t('d.co_ustawienia'))){ konf=k; I.ustaw(k.jezyk); wPrzeladuj(); }
   };
 }
 
@@ -902,22 +905,22 @@ function renderUstZrodla(){
   const E=document.getElementById('ustawienia-zrodla'); if(!E) return;
   const zs=[...new Set(DATA.out.map(zrOf))].filter(z=>z.includes(':'))
     .sort((a,b)=>BANK_ORDER.indexOf(zrBank(a))-BANK_ORDER.indexOf(zrBank(b))||(a<b?-1:a>b?1:0));
-  if(!zs.length){ E.replaceChildren(h('div',{class:'muted'},'Wyciągi nie podają numerów kart ani rachunków.')); return; }
+  if(!zs.length){ E.replaceChildren(h('div',{class:'muted'},t('d.zr_brak_nr'))); return; }
   const N=nazwyZr();
   const pola=zs.map(z=>h('input',{'data-zr':z,maxLength:40,value:N[z]||'',placeholder:zrDomyslna(z)}));
-  const btn=h('button',{class:'tab',id:'zr-zapisz'},'💾 Zapisz nazwy');
+  const btn=h('button',{class:'tab',id:'zr-zapisz'},t('d.zapisz_nazwy'));
   E.replaceChildren(
-    h('div',{class:'muted',style:'font-size:12px'},'Własna nazwa zamiast numeru (np. „Karta syna”). Puste pole = numer. Widać ją w Przeglądzie i w filtrze Transakcji.'),
+    h('div',{class:'muted',style:'font-size:12px'},t('d.zr_opis')),
     h('div',{class:'form-ust'},zs.map((z,i)=>h('label',{},bankNazwa(zrBank(z))+' · '+zrDomyslna(z),pola[i]))), btn);
   btn.onclick=async()=>{
     const m={};
     for(const inp of pola){
       const v=inp.value.trim(); if(!v) continue;
-      if(!NAZWA_OK.test(v)){ alert('Niedozwolona nazwa: '+v+'\nDozwolone: litery, cyfry, spacja i ( ) + & . / _ -'); return; }
+      if(!NAZWA_OK.test(v)){ alert(t('d.nazwa_zr_zla',{nazwa:v})); return; }
       m[inp.dataset.zr]=v;
     }
     const k=Object.assign({},konf,{nazwy_zrodel:m});
-    if(await zapiszUst('/api/konfiguracja',k,'nazwy kart')){ konf=k; renderAll(); }
+    if(await zapiszUst('/api/konfiguracja',k,t('d.co_nazwy_kart'))){ konf=k; renderAll(); }
   };
 }
 
@@ -926,23 +929,23 @@ function renderTagi(){
   const G=document.getElementById('tagi'); if(!G) return;
   const rowsOf=tag=>DATA.out.filter(t=>tagsOf(t).includes(tag) && inTagPer(t));
   const tags=allTags().filter(g=>rowsOf(g).length);          // tylko tagi z transakcjami w wybranym okresie
-  const perOpts=[['all','Cały okres'],['tab','Jak zakładka miesiąca'],...months.slice().reverse().map(m=>[m,mLbl(m)]),['range','Własny zakres…']]
-    .map(([v,l])=>`<option value="${v}" ${tagPer.mode===v?'selected':''}>${l}</option>`).join('');
+  const perOpts=[['all',t('d.caly_okres_cap')],['tab',t('d.jak_zakladka_mies')],...months.slice().reverse().map(m=>[m,mLbl(m)]),['range',t('d.wlasny_zakres')]]
+    .map(([v,l])=>`<option value="${v}" ${tagPer.mode===v?'selected':''}>${escH(l)}</option>`).join('');
   const perBar=`<div class="addcat" style="margin:0 0 10px">
-      <span class="muted" style="font-size:12px">Okres:</span>
+      <span class="muted" style="font-size:12px">${escH(t('d.okres_dp'))}</span>
       <select id="tag-per" class="catsel" style="max-width:none">${perOpts}</select>
       ${tagPer.mode==='range'?`<input id="tag-od" type="date" value="${tagPer.od}" style="min-width:0">
         <input id="tag-do" type="date" value="${tagPer.do}" style="min-width:0">`:''}
-      <span class="tag" style="margin:0">${tagPerLabel()}</span></div>`;
+      <span class="tag" style="margin:0">${escH(tagPerLabel())}</span></div>`;
   const stat=tag=>{ const r=rowsOf(tag), licz=r.filter(t=>!isRefund(t)), ds=r.map(t=>t.d).sort();
     return {r, sum:licz.reduce((s,t)=>s+t.k,0), od:ds[0], do:ds[ds.length-1]}; };
   const summary = tags.length ? `<div class="scroll"><table>
-    <tr><th>Tag</th><th>Okres</th><th class="num">Transakcji</th><th class="num">Suma</th></tr>
+    <tr><th>${escH(t('d.th_tag'))}</th><th>${escH(t('d.th_okres'))}</th><th class="num">${escH(t('d.th_transakcji'))}</th><th class="num">${escH(t('d.th_suma'))}</th></tr>
     ${tags.map(g=>{const x=stat(g); return `<tr class="tagrow ${selTag===g?'sel':''}" data-tag="${enc(g)}">
       <td><span class="chev">${selTag===g?'▾':'▸'}</span> <b>${escH(g.replace(/_/g,' '))}</b></td><td>${escH(x.od)} → ${escH(x.do)}</td>
-      <td class="num">${x.r.length}</td><td class="num">${fmt(x.sum)} zł</td></tr>`;}).join('')}</table></div>`
-    : (allTags().length ? `<div class="muted" style="font-size:12px">Brak otagowanych transakcji w okresie: ${tagPerLabel()}.</div>`
-       : '<div class="muted" style="font-size:12px">Brak tagów. Dodaj „+🔖" przy transakcji albo otaguj zakres dat poniżej.</div>');
+      <td class="num">${x.r.length}</td><td class="num">${escH(I.kwota(x.sum,2))}</td></tr>`;}).join('')}</table></div>`
+    : (allTags().length ? `<div class="muted" style="font-size:12px">${tH('d.brak_otag_okres',{okres:tagPerLabel()})}</div>`
+       : `<div class="muted" style="font-size:12px">${escH(t('d.brak_tagow'))}</div>`);
 
   let detail='';
   if(selTag && tags.includes(selTag)){
@@ -951,15 +954,15 @@ function renderTagi(){
     // dni z wydatkami, nie rozpiętość dat — lot kupiony z wyprzedzeniem nie rozmywa zł/dzień
     const dni=new Set(x.r.filter(t=>!isRefund(t)).map(t=>t.d)).size||1;
     detail=`<div class="drill"><div class="drill-head"><span class="t">🔖 ${escH(selTag.replace(/_/g,' '))}</span>
-        <span class="s">${x.r.length} transakcji · <b>${fmt(x.sum)} zł</b> · ${dni} dni z wydatkami · ${fmt0(x.sum/dni)} zł/dzień</span></div>
+        <span class="s">${tH('d.n_tx',{n:x.r.length})} · <b>${escH(I.kwota(x.sum,2))}</b> · ${tH('d.dni_z_wyd',{n:dni})} · ${escH(I.kwota(x.sum/dni))}${escH(t('d.na_dzien'))}</span></div>
       ${(()=>{ const pm={}; x.r.filter(t=>!isRefund(t)).forEach(t=>pm[t.d.slice(0,7)]=(pm[t.d.slice(0,7)]||0)+t.k);
           const ks=Object.keys(pm).sort(); return ks.length>1 ? `<div class="chips">${ks.map(m=>
-          `<span class="chip">📅 ${mLbl(m)}<span class="n">${fmt(pm[m])} zł</span></span>`).join('')}</div>` : ''; })()}
+          `<span class="chip">📅 ${mLbl(m)}<span class="n">${escH(I.kwota(pm[m],2))}</span></span>`).join('')}</div>` : ''; })()}
       <div class="chips">${Object.entries(cats).sort((a,b)=>b[1]-a[1]).map(([c,v])=>
-        `<span class="chip" style="border-left:3px solid ${catColor(c)}">${escH(c.replace(/_/g,' '))}<span class="n">${fmt(v)} zł · ${Math.round(100*v/(x.sum||1))}%</span></span>`).join('')}</div>
+        `<span class="chip" style="border-left:3px solid ${catColor(c)}">${escH(c.replace(/_/g,' '))}<span class="n">${escH(I.kwota(v,2))} · ${Math.round(100*v/(x.sum||1))}%</span></span>`).join('')}</div>
       <div class="scroll"><table>${hdrTx}${x.r.sort((a,b)=>a.d<b.d?-1:1).map(txRow).join('')}</table></div>
-      <div class="muted" style="font-size:12px;margin-top:8px">Klik w niebieski tag przy transakcji = zdejmij go z tej transakcji.
-        <span class="tagadd" id="tag-del" style="margin-left:8px">🗑 usuń tag „${escH(selTag.replace(/_/g,' '))}" ze wszystkich</span></div></div>`;
+      <div class="muted" style="font-size:12px;margin-top:8px">${escH(t('d.tag_foot'))}
+        <span class="tagadd" id="tag-del" style="margin-left:8px">${tH('d.usun_tag_wszystkie',{tag:selTag.replace(/_/g,' ')})}</span></div></div>`;
   }
 
   const esc=escH;
@@ -967,22 +970,22 @@ function renderTagi(){
   if(bulk.preview){
     const sumChk=bulk.preview.filter(t=>bulk.checked.has(t.id)).reduce((s,t)=>s+t.k,0);
     prev=`<div class="scroll" style="margin-top:10px"><table>
-      <tr><th><input type="checkbox" id="bulk-all" ${bulk.checked.size===bulk.preview.length?'checked':''}></th><th>Data</th><th>Opis</th><th>Kategoria</th><th>Tagi</th><th class="num">Kwota</th></tr>
+      <tr><th><input type="checkbox" id="bulk-all" ${bulk.checked.size===bulk.preview.length?'checked':''}></th>${thCols}</tr>
       ${bulk.preview.map(t=>`<tr><td><input type="checkbox" class="bulk-chk" data-id="${enc(t.id)}" ${bulk.checked.has(t.id)?'checked':''}></td>
         <td>${escH(t.d)}</td><td>${escH(t.o)}</td><td>${escH(effCat(t).replace(/_/g,' '))}</td><td>${escH(tagsOf(t).join(', ').replace(/_/g,' '))}</td><td class="num">${fmt(t.k)}</td></tr>`).join('')}
       </table></div>
-      <div class="addcat" style="margin-top:8px"><button class="tab" id="bulk-save">✔ Otaguj zaznaczone (${bulk.checked.size}) · ${fmt(sumChk)} zł</button>
-        <button class="tab" id="bulk-cancel">Anuluj</button></div>`;
+      <div class="addcat" style="margin-top:8px"><button class="tab" id="bulk-save">${tH('d.bulk_save',{n:bulk.checked.size,kwota:I.kwota(sumChk,2)})}</button>
+        <button class="tab" id="bulk-cancel">${escH(t('d.anuluj'))}</button></div>`;
   }
   G.innerHTML=`${perBar}${summary}${detail}
-    <div class="muted" style="font-size:12px;margin-top:16px">Tagowanie hurtem: zakres dat + opcjonalny filtr opisu (np. <code>dkk|tivoli</code>) → podgląd → odznacz, co nie należy do wyjazdu.</div>
+    <div class="muted" style="font-size:12px;margin-top:16px">${tH('d.bulk_opis')}</div>
     <div class="addcat">
-      <input id="bulk-tag" list="bulk-tags" placeholder="tag, np. Wakacje 2026" maxlength="40" value="${esc(bulk.tag)}" style="min-width:180px">
+      <input id="bulk-tag" list="bulk-tags" placeholder="${escH(t('d.ph_bulk_tag'))}" maxlength="40" value="${esc(bulk.tag)}" style="min-width:180px">
       <datalist id="bulk-tags">${tags.map(g=>`<option value="${escH(g)}">`).join('')}</datalist>
       <input id="bulk-od" type="date" value="${bulk.od}" style="min-width:0">
       <input id="bulk-do" type="date" value="${bulk.do}" style="min-width:0">
-      <input id="bulk-f" placeholder="filtr opisu (regex, opcjonalnie)" value="${esc(bulk.f)}" style="min-width:160px">
-      <button class="tab" id="bulk-show">Pokaż transakcje</button>
+      <input id="bulk-f" placeholder="${escH(t('d.ph_bulk_f'))}" value="${esc(bulk.f)}" style="min-width:160px">
+      <button class="tab" id="bulk-show">${escH(t('d.bulk_show'))}</button>
     </div>${prev}`;
 
   G.querySelectorAll('.tagrow').forEach(el=>el.onclick=()=>{const g=dec(el.dataset.tag);selTag=(selTag===g?null:g);renderTagi();});
@@ -995,11 +998,11 @@ function renderTagi(){
   ['bulk-tag','bulk-od','bulk-do','bulk-f'].forEach(id=>document.getElementById(id).oninput=()=>{
     bulk.tag=val('bulk-tag'); bulk.od=val('bulk-od'); bulk.do=val('bulk-do'); bulk.f=val('bulk-f'); });
   document.getElementById('bulk-show').onclick=()=>{
-    if(!bulk.od){ alert('Podaj datę początkową.'); return; }
+    if(!bulk.od){ alert(t('d.podaj_date')); return; }
     const od=bulk.od, dd=bulk.do||bulk.od;
     let rx=null; if(bulk.f.trim()){
-      const ryz=globalThis.W.reguly&&globalThis.W.reguly.ryzykowny(bulk.f.trim()); if(ryz){ alert('Filtr odrzucony: '+ryz); return; }   // ReDoS
-      try{ rx=new RegExp(bulk.f.trim(),'i'); }catch(e){ alert('Błędny filtr (regex): '+e.message); return; } }
+      const ryz=globalThis.W.reguly&&globalThis.W.reguly.ryzykowny(bulk.f.trim()); if(ryz){ alert(t('d.filtr_odrzucony',{powod:ryz})); return; }   // ReDoS
+      try{ rx=new RegExp(bulk.f.trim(),'i'); }catch(e){ alert(t('d.filtr_zly',{blad:e.message})); return; } }
     bulk.preview=DATA.out.filter(t=>t.d>=od && t.d<=dd && (!rx || rx.test(t.o))).sort((a,b)=>a.d<b.d?-1:1);
     bulk.checked=new Set(bulk.preview.map(t=>t.id));
     renderTagi();
@@ -1010,8 +1013,8 @@ function renderTagi(){
     document.getElementById('bulk-all').onchange=e=>{bulk.checked=e.target.checked?new Set(bulk.preview.map(t=>t.id)):new Set(); renderTagi();};
     document.getElementById('bulk-cancel').onclick=()=>{bulk.preview=null; renderTagi();};
     document.getElementById('bulk-save').onclick=async()=>{
-      const tag=normTag(bulk.tag); if(!tag) { if(!bulk.tag.trim()) alert('Podaj nazwę tagu.'); return; }
-      if(!bulk.checked.size){ alert('Nic nie zaznaczono.'); return; }
+      const tag=normTag(bulk.tag); if(!tag) { if(!bulk.tag.trim()) alert(t('d.podaj_tag')); return; }
+      if(!bulk.checked.size){ alert(t('d.nic_zazn')); return; }
       const ids=[...bulk.checked]; bulk.preview=null; selTag=tag;
       await addTag(ids, tag);
     };
@@ -1048,9 +1051,9 @@ function budStan(b){
 }
 function renderBudzety(){
   const B=document.getElementById('budzety'); if(!B) return;
-  document.getElementById('bud-scope').textContent = period==='all' ? 'bieżący miesiąc / rok' : 'wg zakładki: '+mLbl(period);
+  document.getElementById('bud-scope').textContent = period==='all' ? t('d.bud_biezacy') : t('d.wg_zakladki',{m:mLbl(period)});
   const zakres=b=>[...(b.kategorie||[]).map(c=>escH(c.replace(/_/g,' '))), ...(b.tagi||[]).map(g=>'🔖'+escH(g.replace(/_/g,' ')))].join(' + ')
-                  + ((b.bez_tagow||[]).length?` (bez 🔖${escH(b.bez_tagow.join(', '))})`:'');
+                  + ((b.bez_tagow||[]).length?tH('d.bez_tagow',{tagi:b.bez_tagow.join(', ')}):'');
   const rowsHtml = budzety.map((b,i)=>{
     const x=budStan(b), pct=x.limit?x.wyd/x.limit:0;
     const cls = x.wyd>x.limit ? 'over' : (x.prog>x.limit || pct>0.8 ? 'warn' : 'ok');
@@ -1058,26 +1061,26 @@ function renderBudzety(){
     const wyj = (b.wyjatki||{})[x.o.klucz]!=null;
     return `<div class="bud ${selBud===i?'sel':''}" data-i="${i}">
       <div class="bud-top"><span class="bud-name">${escH(b.nazwa)}</span>
-        <span class="bud-val"><b class="${cls}">${fmt0(x.wyd)}</b> / ${fmt0(x.limit)} zł · ${x.o.label}</span></div>
+        <span class="bud-val"><b class="${cls}">${fmt0(x.wyd)}</b> / ${escH(I.kwota(x.limit))} · ${x.o.label}</span></div>
       <div class="bud-bar"><div class="bud-fill" style="width:${Math.min(100,pct*100).toFixed(1)}%;background:${col}"></div>
-        ${x.o.frac>0&&x.o.frac<1?`<div class="bud-pace" style="left:${(x.o.frac*100).toFixed(1)}%" title="tempo: upływ okresu"></div>`:''}</div>
+        ${x.o.frac>0&&x.o.frac<1?`<div class="bud-pace" style="left:${(x.o.frac*100).toFixed(1)}%" title="${escH(t('d.tempo_title'))}"></div>`:''}</div>
       <div class="bud-sub"><span>${zakres(b)}</span>
-        <span>${x.limit-x.wyd>=0?'zostało '+fmt0(x.limit-x.wyd):'<span class="over">przekroczone o '+fmt0(x.wyd-x.limit)+'</span>'} zł</span>
-        ${x.o.frac>0.15&&x.o.frac<1?`<span class="${x.prog>x.limit?'warn':''}">prognoza ${fmt0(x.prog)} zł</span>`:''}
-        <span>limit ${b.okres==='rok'?'roczny':'mies.'}${wyj?' (wyjątek '+x.o.label+')':''}: <input type="number" min="0" step="50" class="bud-lim" data-i="${i}" value="${x.limit}" title="Zmiana dotyczy ${wyj?'wyjątku dla tego okresu':'limitu stałego'}"></span>
-        <span class="tagadd bud-del" data-i="${i}" title="Usuń budżet">🗑</span></div>
+        <span>${x.limit-x.wyd>=0?tH('d.zostalo',{kwota:I.kwota(x.limit-x.wyd)}):'<span class="over">'+tH('d.przekroczone',{kwota:I.kwota(x.wyd-x.limit)})+'</span>'}</span>
+        ${x.o.frac>0.15&&x.o.frac<1?`<span class="${x.prog>x.limit?'warn':''}">${tH('d.prognoza',{kwota:I.kwota(x.prog)})}</span>`:''}
+        <span>${escH(t(b.okres==='rok'?'d.limit_roczny':'d.limit_mies'))}${wyj?tH('d.wyjatek',{okres:x.o.label}):''}: <input type="number" min="0" step="50" class="bud-lim" data-i="${i}" value="${x.limit}" title="${escH(t(wyj?'d.zmiana_wyjatek':'d.zmiana_limit'))}"></span>
+        <span class="tagadd bud-del" data-i="${i}" title="${escH(t('d.usun_bud_title'))}">🗑</span></div>
       ${selBud===i?`<div class="drill" style="margin-top:8px"><div class="scroll"><table>${hdrTx}${x.rows.slice().sort((a,b)=>b.k-a.k).map(txRow).join('')}</table></div></div>`:''}
     </div>`;}).join('');
-  const opts=`<optgroup label="Kategorie">${catList().map(c=>`<option value="k:${escH(c)}">${escH(c.replace(/_/g,' '))}</option>`).join('')}</optgroup>
-    <optgroup label="Tagi">${allTags().map(g=>`<option value="t:${escH(g)}">🔖 ${escH(g.replace(/_/g,' '))}</option>`).join('')}</optgroup>`;
-  B.innerHTML=(rowsHtml||'<div class="muted" style="font-size:12px">Brak budżetów — dodaj poniżej.</div>')+`
+  const opts=`<optgroup label="${escH(t('d.grp_kat'))}">${catList().map(c=>`<option value="k:${escH(c)}">${escH(c.replace(/_/g,' '))}</option>`).join('')}</optgroup>
+    <optgroup label="${escH(t('d.grp_tagi'))}">${allTags().map(g=>`<option value="t:${escH(g)}">🔖 ${escH(g.replace(/_/g,' '))}</option>`).join('')}</optgroup>`;
+  B.innerHTML=(rowsHtml||`<div class="muted" style="font-size:12px">${escH(t('d.brak_bud'))}</div>`)+`
     <div class="addcat" style="margin-top:12px">
-      <input id="bud-n" placeholder="nazwa, np. Jedzenie na mieście" maxlength="60" style="min-width:180px">
+      <input id="bud-n" placeholder="${escH(t('d.ph_bud_n'))}" maxlength="60" style="min-width:180px">
       <select id="bud-z" class="catsel" style="max-width:220px">${opts}</select>
-      <select id="bud-o" class="catsel"><option value="miesiac">miesięczny</option><option value="rok">roczny</option></select>
-      <input id="bud-l" type="number" min="0" step="50" placeholder="limit zł" style="min-width:0;width:110px">
-      <button class="tab" id="bud-add">➕ Dodaj budżet</button></div>
-    <div class="muted" style="font-size:12px;margin-top:6px">Pasek: 🟢 w normie · 🟡 prognoza ponad limit lub &gt;80% · 🔴 przekroczony. Pionowa kreska = upływ okresu. Klik w budżet = transakcje. Złożone budżety (kilka kategorii/tagów, wyjątki per miesiąc) — w <code>budzety.json</code>.</div>`;
+      <select id="bud-o" class="catsel"><option value="miesiac">${escH(t('d.miesieczny'))}</option><option value="rok">${escH(t('d.roczny'))}</option></select>
+      <input id="bud-l" type="number" min="0" step="50" placeholder="${escH(t('d.ph_limit',{sym:I.symbol()}))}" style="min-width:0;width:110px">
+      <button class="tab" id="bud-add">${escH(t('d.dodaj_bud'))}</button></div>
+    <div class="muted" style="font-size:12px;margin-top:6px">${tH('d.bud_foot')}</div>`;
   B.querySelectorAll('.bud').forEach(el=>el.onclick=e=>{
     if(e.target.closest('input,.bud-del,.drill')) return;
     const i=+el.dataset.i; selBud=(selBud===i?null:i); renderBudzety();
@@ -1087,13 +1090,13 @@ function renderBudzety(){
     if((b.wyjatki||{})[k]!=null) b.wyjatki[k]=v; else b.limit=v;
     await saveBudzety(); renderBudzety(); }; });
   B.querySelectorAll('.bud-del').forEach(el=>el.onclick=async e=>{ e.stopPropagation();
-    const b=budzety[+el.dataset.i]; if(!confirm(`Usunąć budżet „${b.nazwa}"?`)) return;
+    const b=budzety[+el.dataset.i]; if(!confirm(t('d.usun_bud',{nazwa:b.nazwa}))) return;
     budzety.splice(+el.dataset.i,1); selBud=null; await saveBudzety(); renderBudzety(); });
   if(selBud!=null){ const d=B.querySelector('.bud.sel .drill'); if(d) bindTxRows(d); }
   document.getElementById('bud-add').onclick=async()=>{
     const n=document.getElementById('bud-n').value.trim(), z=document.getElementById('bud-z').value,
           o=document.getElementById('bud-o').value, l=+document.getElementById('bud-l').value;
-    if(!n||!(l>0)){ alert('Podaj nazwę i limit > 0.'); return; }
+    if(!n||!(l>0)){ alert(t('d.podaj_bud')); return; }
     const b={nazwa:n, okres:o, limit:l, kategorie:[], tagi:[]};
     (z[0]==='k'?b.kategorie:b.tagi).push(z.slice(2));
     budzety.push(b); await saveBudzety(); renderBudzety();
@@ -1111,32 +1114,32 @@ function renderWplywy(){
   // średnia z ostatnich 4 pełnych miesięcy (jak PODSUMOWANIE.md) — wcześniejsze miesiące mają niepełne źródła
   const now=new Date(), cur=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
   const pelne=ms.filter(m=>m<cur).slice(-4);
-  const head=`<tr><th>Grupa</th>${ms.map(m=>`<th class="num">${mLbl(m)}</th>`).join('')}<th class="num" title="średnia z ${pelne.length} pełnych miesięcy">śr./mc*</th><th class="num">rok ${rok}</th></tr>`;
+  const head=`<tr><th>${escH(t('d.th_grupa'))}</th>${ms.map(m=>`<th class="num">${mLbl(m)}</th>`).join('')}<th class="num" title="${tH('d.srednia_z_pelnych',{n:pelne.length})}">${escH(t('d.sr_mc_star'))}</th><th class="num">${escH(t('d.rok_n',{rok}))}</th></tr>`;
   const body=grp.map(g=>{const per=ms.map(m=>sum(g,t=>t.d.startsWith(m)));
     const sr=pelne.reduce((s,m)=>s+sum(g,t=>t.d.startsWith(m)),0)/(pelne.length||1);
     return `<tr class="tagrow ${selWpl===g?'sel':''}" data-g="${enc(g)}"><td>${selWpl===g?'▾':'▸'} ${escH(g.replace(/_/g,' '))}</td>
       ${per.map(v=>`<td class="num">${v?fmt0(v):'·'}</td>`).join('')}
       <td class="num">${fmt0(sr)}</td><td class="num"><b>${fmt0(sum(g,t=>t.d.startsWith(rok)))}</b></td></tr>`;}).join('');
   // „zwroty/cashback" = grupy Cashback* i Zwroty* (bez prezentów od rodziny i innych wpływów)
-  const zw=grp.filter(g=>/^(cashback|zwrot)/i.test(g)).reduce((s,g)=>s+sum(g,t=>t.d.startsWith(rok)),0);
-  document.getElementById('wpl-sum').textContent=`zwroty/cashback ${rok}: ${fmt0(zw)} zł`;
+  const zw=grp.filter(g=>/^(cashback|zwrot|refund)/i.test(g)).reduce((s,g)=>s+sum(g,t=>t.d.startsWith(rok)),0);
+  document.getElementById('wpl-sum').textContent=t('d.wpl_sum',{rok,kwota:I.kwota(zw)});
   let det='';
   if(selWpl){ const r=rows.filter(t=>t.g===selWpl).sort((a,b)=>a.d<b.d?1:-1);
-    det=`<div class="drill"><div class="scroll"><table><tr><th>Data</th><th>Opis</th><th class="num">Kwota</th></tr>
+    det=`<div class="drill"><div class="scroll"><table><tr><th>${escH(t('d.th_data'))}</th><th>${escH(t('d.th_opis'))}</th><th class="num">${escH(t('d.th_kwota'))}</th></tr>
       ${r.map(t=>`<tr><td>${escH(t.d)}</td><td>${escH(t.o)}</td><td class="num">${fmt(t.k)}</td></tr>`).join('')}</table></div></div>`; }
   W.innerHTML=`<div class="scroll"><table class="cmp">${head}${body}</table></div>${det}
-    <div class="muted" style="font-size:12px;margin-top:8px">Grupy z sekcji <code>_wplywy</code> w <code>kategorie.yaml</code>. Przelewy własne, odsetki i wypłaty z kont inwestycyjnych są wykluczone. Klik w grupę = lista wpływów. *śr./mc z ostatnich ${pelne.length} pełnych miesięcy.</div>`;
+    <div class="muted" style="font-size:12px;margin-top:8px">${tH('d.wpl_foot',{n:pelne.length})}</div>`;
   W.querySelectorAll('.tagrow').forEach(el=>el.onclick=()=>{const g=dec(el.dataset.g);selWpl=(selWpl===g?null:g);renderWplywy();});
 }
 
 function renderAll(){renderTabs();renderKpis();renderFire();renderPace();renderBudzety();renderDonut();renderZrodla();renderDrill();renderWeeks();renderTop();renderTxList();renderRefunds();renderMonthsChart();renderCompare();renderWplywy();renderSubs();renderTagi();renderKategorie();renderReguly();renderUstawienia();renderUstZrodla();}
 
 async function przelicz(){
-  const b=document.getElementById('btn-przelicz'); if(b){b.disabled=true;b.textContent='Przeliczam…';}
+  const b=document.getElementById('btn-przelicz'); if(b){b.disabled=true;b.textContent=t('d.przeliczam');}
   try{ const r=await wApi('/api/przelicz',{method:'POST'});
        if(!r.ok) throw new Error(await r.text());
        wPrzeladuj();
-  }catch(e){ alert('Błąd przeliczania: '+e.message); if(b){b.disabled=false;b.textContent='↻ Przelicz';} }
+  }catch(e){ alert(t('d.blad_przeliczania',{blad:e.message})); if(b){b.disabled=false;b.textContent=t('d.przelicz');} }
 }
 
 (async()=>{

@@ -1,0 +1,79 @@
+# Categorisation rules — defaults (to edit: copy to ustawienia/kategorie.yaml)
+# Format: CATEGORY -> list of patterns (regex, case-insensitive) matched against DESCRIPTION + PAYEE.
+# The first matching rule wins (order matters).
+
+# --- EXCLUSIONS: own transfers, card repayments, salary ---
+_wyklucz:
+  - "john doe"
+  - "transfer (to|from) (savings|checking)"
+  - "online transfer"
+  - "payment.{0,3}thank you"
+  - "autopay|credit card payment|card payment received"
+  - "interest (paid|earned)"
+  - "payroll|direct deposit"     # salary = core income, not "extra income"
+
+kategorie:
+  Travel:
+    - "airbnb|booking\.com|expedia|hotels\.com|marriott|hilton|hyatt|motel|\binn\b"
+    - "delta air|united air|american air|southwest|jetblue|alaska air|spirit air|frontier air"
+    - "amtrak|greyhound|hertz|avis|enterprise rent|budget rent"
+
+  Groceries:
+    - "walmart|target|costco|kroger|safeway|whole foods|trader joe|aldi|publix|albertsons|h-e-b|\bheb\b|wegmans|food lion|sprouts"
+
+  Dining_out:
+    - "mcdonald|starbucks|chipotle|subway|taco bell|wendy|burger king|dunkin|chick-fil-a|domino|pizza|panera|restaurant|cafe|coffee"
+    - "doordash|uber \*?eats|grubhub|postmates|instacart"
+
+  Subscriptions:
+    - "netflix|spotify|hulu|disney|\bhbo\b|\bmax\b|youtube premium|prime video|apple\.com/bill|paramount|peacock"
+    - "chatgpt|openai|claude|anthropic|github"
+    - "icloud|google one|dropbox|proton"
+
+  Home_and_bills:
+    - "electric|energy|\bgas co|water|utility|comcast|xfinity|spectrum|verizon|at&t|t-mobile"
+    - "\brent\b|hoa|mortgage"
+    - "geico|state farm|progressive|allstate|insurance"
+    - "home depot|lowe's|lowes|ikea|bed bath"
+
+  Health_and_beauty:
+    - "cvs|walgreens|rite aid|pharmacy|dental|dentist|clinic|hospital|ulta|sephora"
+    - "salon|barber"
+
+  Transport:
+    - "shell|chevron|exxon|mobil|\bbp\b|valero|sunoco|speedway|wawa|7-eleven|circle k"
+    - "uber(?! \*?eats)|lyft|metro|transit|parking|toll|e-zpass|car wash"
+
+  Shopping:
+    - "amazon|amzn|ebay|etsy|best buy|apple store|macy|nordstrom|tj ?maxx|marshalls|old navy|gap|nike|kohl"
+
+  Entertainment:
+    - "amc|regal|cinemark|ticketmaster|eventbrite|steam|playstation|xbox|nintendo"
+    - "gym|planet fitness|fitness"
+
+  Cash:
+    - "atm withdrawal|\batm\b|cash withdrawal"
+    - "venmo|zelle|cash app"
+
+  Family_and_gifts:
+    - "florist|gift|donation|charity"
+
+  Other_uncategorized: []
+
+# --- TAGS: "what for / on what occasion" — alongside categories ---
+_tagi:
+  Kids:
+    - "school|tuition|allowance"
+  Gifts:
+    - "florist|gift"
+  AI:
+    - "chatgpt|openai|claude|anthropic"
+  Vacation_2026:
+    - "airbnb|marriott|hilton"
+
+# --- INCOME: groups of income other than own transfers ---
+_wplywy:
+  Cashback_and_rewards:
+    - "cashback|cash back|reward"
+  Refunds:
+    - "refund|return|reversal"

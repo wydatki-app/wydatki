@@ -17,6 +17,19 @@
   }
 
   const SEKCJE = ["_wyklucz", "kategorie", "_tagi", "_wplywy"];
+
+  // Role: kategorie o specjalnym znaczeniu w dashboardzie (warstwy FIRE, subskrypcje, kategoria/grupa domyślna).
+  // Nazwa kategorii to dane użytkownika (klucz w override.json, budzety.json) — nie tłumaczymy jej,
+  // tylko rozpoznajemy obie wersje: z domyślnych reguł PL i EN.
+  const ROLE = {
+    podroze: ["Podróże", "Travel"],
+    rodzina: ["Rodzina_i_prezenty", "Family_and_gifts"],
+    subskrypcje: ["Subskrypcje", "Subscriptions"],
+    inne: ["Inne_nieskategoryzowane", "Other_uncategorized"],
+    inne_wplywy: ["Inne_wpływy", "Other_income"],
+  };
+  const ROLA_NAZWY = new Map(Object.entries(ROLE).flatMap(([r, n]) => n.map(x => [x, r])));
+  const rola = nazwa => ROLA_NAZWY.get(nazwa) || null;
   const rstripDwukropek = s => s.replace(/:+$/, "");
 
   // Kategorie = lista BLOKÓW [nazwa, wzorce] w kolejności z pliku (ta sama nazwa może wystąpić
@@ -102,7 +115,11 @@
     const y = wczytajYaml(tekstYaml), bledy = [];
     const kat = y.bloki.map(([n, p]) => [n, kompiluj(p, bledy)]);
     const wl = (wlasne || []).map(r => [r.kategoria, kompiluj([r.wzorzec], bledy)]);
+    // język reguł: EN, gdy plik używa angielskiej nazwy kategorii domyślnej (inaczej PL — jak dotąd)
+    const nazwy = new Set(y.bloki.map(([n]) => n));
+    const en = nazwy.has(ROLE.inne[1]) && !nazwy.has(ROLE.inne[0]) ? 1 : 0;
     return {
+      inne: ROLE.inne[en], inneWplywy: ROLE.inne_wplywy[en],
       kategorie: [...new Set(y.bloki.map(([n]) => n))],
       wplywyGrupy: [...y.wplywy.keys()],
       wykluczRe: kompiluj(y.wyklucz, bledy),
@@ -125,12 +142,12 @@
 
   function kategoria(R, tx) {
     for (const [k, rxs] of R.katRe) if (pasuje(rxs, tx.text)) return k;
-    return "Inne_nieskategoryzowane";
+    return R.inne;
   }
 
   function grupaWplywu(R, tx) {
     for (const [g, rxs] of R.wplywyRe) if (pasuje(rxs, tx.text)) return g;
-    return "Inne_wpływy";
+    return R.inneWplywy;
   }
 
   const autoTagi = (R, tx) => R.tagRe.filter(([, rxs]) => pasuje(rxs, tx.text)).map(([n]) => n);
@@ -169,5 +186,5 @@
     return (slowa[0].length < 5 && slowa[1] ? slowa.slice(0, 2) : slowa.slice(0, 1)).map(esc).join("\\s+");
   }
 
-  W.reguly = { wczytajYaml, zbuduj, ryzykowny, sugestia, wykluczona, kategoria, grupaWplywu, autoTagi, doDashboardu };
+  W.reguly = { ROLE, rola, wczytajYaml, zbuduj, ryzykowny, sugestia, wykluczona, kategoria, grupaWplywu, autoTagi, doDashboardu };
 })(globalThis.W = globalThis.W || {});

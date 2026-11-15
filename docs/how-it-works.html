@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'">
+<title>How Wydatki works</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--txt:#14181f;--mut:#5f6b7a;--line:#e3e7ec;--acc:#2a6fd6;--acc-soft:#e9f1fd;
+  --auto:#1f8a5b;--auto-soft:#e6f5ee;--ty:#b5651d;--ty-soft:#fbf0e4;--warn:#b42318;--warn-soft:#fdecea;--kod:#eef1f5}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#0f1216;--card:#171b21;--txt:#e7eaee;--mut:#9aa4b1;
+  --line:#2a313b;--acc:#5b9bf0;--acc-soft:#1a2a40;--auto:#4cc38a;--auto-soft:#16302a;--ty:#e3a35f;--ty-soft:#33261a;
+  --warn:#f07167;--warn-soft:#3a1d1b;--kod:#222831}}
+:root[data-theme=dark]{--bg:#0f1216;--card:#171b21;--txt:#e7eaee;--mut:#9aa4b1;--line:#2a313b;--acc:#5b9bf0;--acc-soft:#1a2a40;
+  --auto:#4cc38a;--auto-soft:#16302a;--ty:#e3a35f;--ty-soft:#33261a;--warn:#f07167;--warn-soft:#3a1d1b;--kod:#222831}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:980px;margin:0 auto;padding:28px 16px 64px}
+h1{font-size:30px;line-height:1.2;margin:0 0 6px}
+h2{font-size:21px;margin:44px 0 12px}
+h3{font-size:16px;margin:0 0 4px}
+p{margin:8px 0}
+.lead{color:var(--mut);font-size:17px;max-width:720px}
+code{background:var(--kod);border-radius:4px;padding:1px 5px;font-size:.88em;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+.legend{display:flex;gap:16px;flex-wrap:wrap;margin:14px 0 4px;font-size:14px;color:var(--mut)}
+.pill{display:inline-block;font-size:12px;font-weight:600;border-radius:999px;padding:2px 9px;white-space:nowrap}
+.pill.auto{background:var(--auto-soft);color:var(--auto)}
+.pill.ty{background:var(--ty-soft);color:var(--ty)}
+/* przebieg */
+.flow{display:grid;gap:0;margin-top:14px}
+.step{display:grid;grid-template-columns:44px 1fr;gap:14px;position:relative;padding-bottom:18px}
+.step:not(:last-child)::before{content:"";position:absolute;left:21px;top:44px;bottom:0;width:2px;background:var(--line)}
+.num{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-weight:700;background:var(--acc-soft);color:var(--acc);border:2px solid var(--acc)}
+.step.ty .num{background:var(--ty-soft);color:var(--ty);border-color:var(--ty)}
+.step .card{padding:12px 16px}
+.step .hd{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:2px}
+.step p{color:var(--mut);font-size:15px;margin:4px 0 0}
+.step ul{margin:6px 0 0;padding-left:18px;color:var(--mut);font-size:15px}
+/* kolejność decyzji */
+.cascade{display:grid;gap:8px;margin-top:10px}
+.lvl{display:grid;grid-template-columns:32px 1fr auto;gap:12px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 14px}
+.lvl b.i{font-size:18px;color:var(--acc)}
+.lvl small{color:var(--mut);font-size:14px;display:block}
+/* dwie kolumny */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.grid2 .card h3{margin-bottom:6px}
+.grid2 ol{margin:6px 0 0;padding-left:20px;font-size:15px}
+table{width:100%;border-collapse:collapse;font-size:15px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--mut);font-weight:600;font-size:13px}
+.tree{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:14px;line-height:1.6;white-space:pre;overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.tree .c{color:var(--mut)}
+.note{border-left:4px solid var(--warn);background:var(--warn-soft);border-radius:8px;padding:10px 14px;font-size:15px;margin-top:12px}
+.routine{counter-reset:r;list-style:none;padding:0;margin:10px 0 0;display:grid;gap:8px}
+.routine li{counter-increment:r;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 14px 10px 50px;position:relative}
+.routine li::before{content:counter(r);position:absolute;left:14px;top:9px;width:24px;height:24px;border-radius:50%;background:var(--acc);color:#fff;font-weight:700;font-size:13px;display:grid;place-items:center}
+.wrap{overflow-x:auto}
+footer{margin-top:48px;color:var(--mut);font-size:13px}
+@media(max-width:700px){h1{font-size:25px}.grid2{grid-template-columns:1fr}.lvl{grid-template-columns:26px 1fr}.lvl .pill{grid-column:2}}
+</style>
+</head>
+<body>
+<main>
+<h1>How Wydatki works</h1>
+<p class="lead">From a bank file to the dashboard and your FIRE goal. Everything happens in your browser:
+files are read locally, and the page has network connections blocked (CSP <code>connect-src 'none'</code>).
+The short version: <a href="animacja.html" style="color:var(--acc)">a 25-second animation</a>.</p>
+<div class="legend"><span><span class="pill auto">automatic</span> done by the app</span><span><span class="pill ty">You</span> a decision or action by the user</span></div>
+
+<h2>1. Step by step</h2>
+<div class="flow">
+
+  <div class="step ty"><div class="num">1</div><div class="card">
+    <div class="hd"><h3>You download statements from your banks</h3><span class="pill ty">You</span></div>
+    <p>OFX/QFX ("Download for Quicken") from any bank that offers it, including most US banks. Also supported: CSV from Millennium, mBank, PKO BP, Alior and Revolut;
+       PDF "account/card history" from VeloBank; XLSX "operations statement" from BNP Paribas.
+       Put them in the <code>dane/</code> folder (<code>dane</code> = data) — preferably in per-bank subfolders (<code>dane/ofx/</code>, <code>dane/mbank/</code>, <code>dane/velo/</code>…),
+       but that is only for your own tidiness: the app reads statements from the whole folder and detects the bank from the contents.</p>
+  </div></div>
+
+  <div class="step ty"><div class="num">2</div><div class="card">
+    <div class="hd"><h3>You open <code>wydatki.html</code> and pick the folder</h3><span class="pill ty">You</span></div>
+    <p>Click "Choose your Wydatki folder" or drag the folder in. Folders starting with <code>_</code> or <code>.</code>
+       (e.g. <code>_archive</code>) are skipped. Files over 30 MB are skipped with a warning.</p>
+  </div></div>
+
+  <div class="step"><div class="num">3</div><div class="card">
+    <div class="hd"><h3>Bank detection</h3><span class="pill auto">automatic</span></div>
+    <p>By content, not by name: the column header of a CSV or XLSX sheet (e.g. <code>#Data operacji…#Kwota</code> = mBank) or the PDF text
+       ("VeloBank S.A."), and for OFX/QFX the <code>OFXHEADER</code> header. UTF-8 or Windows-1250 encoding is detected automatically. An unrecognized file → a warning in the top bar.</p>
+  </div></div>
+
+  <div class="step"><div class="num">4</div><div class="card">
+    <div class="hd"><h3>Reading and checking transactions</h3><span class="pill auto">automatic</span></div>
+    <ul>
+      <li>Date, description, payee, amount; for card payments — the actual purchase date.</li>
+      <li>Holds ("pending") are skipped — they come back as the final transaction.</li>
+      <li>A row with a bad date is rejected with a warning in the bar; a row without a valid amount is skipped (protection against a corrupted or planted file).</li>
+      <li>PDF and XLSX: limits on size (50 MB after unpacking) and complexity — a malicious file is skipped and the tab does not freeze.
+          OFX/QFX: a file with <code>DOCTYPE</code>/<code>ENTITY</code> is rejected, limit of 100,000 transactions.</li>
+      <li>Main currency: from Settings, or the most common one in your files. Transactions in other currencies are skipped and reported in the bar —
+          the app does not convert exchange rates and does not mix currencies in totals. Revolut: for foreign-currency accounts the equivalent in the main currency is used.</li>
+      <li>Source: the bank plus the card or account — last 4 digits only, the full number never leaves the parser.</li>
+      <li>Revolut: transfers to other people count as spending (with the bank fee); top-ups of the account do not.</li>
+    </ul>
+  </div></div>
+
+  <div class="step"><div class="num">5</div><div class="card">
+    <div class="hd"><h3>Merging and removing duplicates</h3><span class="pill auto">automatic</span></div>
+    <p>Exports with overlapping periods do not double your spending: a transaction with the same date, description and amount in several files counts once.
+       Two identical transactions in one file (e.g. two $62 tickets on the same day) are two expenses.
+       OFX/QFX: duplicates are recognized by the bank's transaction ID (<code>FITID</code>).</p>
+  </div></div>
+
+  <div class="step"><div class="num">6</div><div class="card">
+    <div class="hd"><h3>Exclusions</h3><span class="pill auto">automatic</span></div>
+    <p>Own transfers, card repayments, transfers between your accounts and patterns from the <code>_wyklucz</code> section (<code>wyklucz</code> = exclude) are neither spending
+       nor income — otherwise the same money would count twice.</p>
+  </div></div>
+
+  <div class="step"><div class="num">7</div><div class="card">
+    <div class="hd"><h3>Category, tags, income group</h3><span class="pill auto">automatic</span></div>
+    <p>According to the rules — the order of decisions is in section 2 below. Tags from rules (e.g. "Kids" for a child's card),
+       income gets a group (cashback, refunds, …).</p>
+  </div></div>
+
+  <div class="step ty"><div class="num">8</div><div class="card">
+    <div class="hd"><h3>You review and correct</h3><span class="pill ty">You</span></div>
+    <ul>
+      <li>Change a transaction's category → the app suggests a <b>rule</b> for similar (and future) transactions.</li>
+      <li>Manual and bulk tags (date range, e.g. "Vacation 2026"); switch off a rule's tag for a single transaction.</li>
+      <li>"To be refunded" — an expense you are waiting to get back disappears from the totals.</li>
+      <li>Monthly and annual budgets; the FIRE goal in the Settings view.</li>
+      <li>The Overview breakdown by bank and card: click a bank or card → Transactions with that filter; your own card names in Settings.</li>
+    </ul>
+  </div></div>
+
+  <div class="step"><div class="num">9</div><div class="card">
+    <div class="hd"><h3>Cost-of-living layers and FIRE</h3><span class="pill auto">automatic</span></div>
+    <p>Each expense lands in one layer (section 3). Current cost of living × 12 ÷ withdrawal rate = the capital needed for FIRE.</p>
+  </div></div>
+
+  <div class="step"><div class="num">10</div><div class="card">
+    <div class="hd"><h3>Saving your changes</h3><span class="pill auto">automatic</span></div>
+    <p>Depending on the browser — straight to the folder, or in the browser with a backup reminder (section 4).
+       The app never modifies your statements.</p>
+  </div></div>
+</div>
+
+<h2>2. How a transaction gets its category</h2>
+<p>Checked from the top. The first match wins; lower levels are not reached.</p>
+<div class="cascade">
+  <div class="lvl"><b class="i">0</b><div>Exclusion <small>own transfer, card repayment, the <code>_wyklucz</code> section → the transaction stays out of the calculations</small></div><span class="pill auto">rule</span></div>
+  <div class="lvl"><b class="i">1</b><div>Manual change on this transaction <small>saved in <code>override.json</code>; applies to that one transaction only</small></div><span class="pill ty">You</span></div>
+  <div class="lvl"><b class="i">2</b><div>Your rules from the app <small><code>reguly_wlasne.json</code> — a fragment of the description → a category, e.g. "kroger" → Groceries</small></div><span class="pill ty">You</span></div>
+  <div class="lvl"><b class="i">3</b><div>Rules from the file <small><code>kategorie.yaml</code> from your folder, or the built-in defaults; the first matching category in file order</small></div><span class="pill auto">rule</span></div>
+  <div class="lvl"><b class="i">4</b><div>No match <small>"Other uncategorized" — worth checking after every import</small></div><span class="pill auto">default</span></div>
+</div>
+<p style="color:var(--mut);font-size:15px">Rules match the description and the payee, case-insensitive. In the app you type plain text;
+the full regular-expression syntax is available in <code>kategorie.yaml</code> (the "download kategorie.yaml to edit" button).
+Patterns that could freeze the app are rejected with a message. The default English categories (e.g. Groceries, Dining_out, Travel, Subscriptions, Family_and_gifts)
+and tags (e.g. Kids) are used until you provide your own file.</p>
+
+<h2>3. Cost-of-living layers (the FIRE card)</h2>
+<p>Each expense goes to the first matching layer. You set thresholds and tags in the Settings view (<code>konfiguracja.json</code>).</p>
+<div class="wrap"><table class="card" style="padding:0">
+  <tr><th>Order</th><th>Condition</th><th>Layer</th></tr>
+  <tr><td>1</td><td>category Travel</td><td>travel</td></tr>
+  <tr><td>2</td><td>kids tag (default "Kids")</td><td>kids</td></tr>
+  <tr><td>3</td><td>category Family and gifts</td><td>family</td></tr>
+  <tr><td>4</td><td>events tag (e.g. a festival)</td><td>events</td></tr>
+  <tr><td>5</td><td>amount ≥ the one-off threshold (default 300 in your main currency)</td><td>one-offs</td></tr>
+  <tr><td>6</td><td>everything else</td><td><b>current cost of living</b> → the basis of the FIRE goal</td></tr>
+</table></div>
+<p style="color:var(--mut);font-size:15px">Averages are computed from full months (the last 4 by default); the current month is shown with a forecast.</p>
+
+<h2>4. Where your changes are saved</h2>
+<div class="grid2">
+  <div class="card"><h3>Chrome, Edge</h3>
+    <ol>
+      <li>You pick the folder with the button — the browser asks once for permission to write.</li>
+      <li>Every change goes straight to a file in <code>ustawienia/</code> (atomic write).</li>
+      <li>Next time: "Open last folder".</li>
+    </ol></div>
+  <div class="card"><h3>Firefox, Safari, Brave</h3>
+    <ol>
+      <li>Changes live in browser storage; the bar counts changes without a backup.</li>
+      <li>After 10 changes or 3 days the bar turns urgent.</li>
+      <li>"Save settings backup" → move the <code>wydatki-ustawienia.json</code> file into <code>ustawienia/</code>.</li>
+      <li>On load the newer version wins: the backup in the browser or the files.</li>
+    </ol></div>
+</div>
+<div class="note"><b>Shared computer:</b> the "clear browser data" button removes the app's settings and the remembered folder.
+The files in your folder stay; if you have changes without a backup, the app warns you first.</div>
+
+<h2>5. Folder layout</h2>
+<div class="tree">Wydatki/
+├── wydatki.html            <span class="c">← the app (a single file)</span>
+├── dane/                   <span class="c">← statements (data); per-bank subfolders are optional (tidiness)</span>
+│   ├── ofx/                <span class="c">← OFX/QFX from any bank ("Download for Quicken")</span>
+│   ├── millennium/         <span class="c">← CSV "Historia transakcji"</span>
+│   ├── mbank/              <span class="c">← CSV "Elektroniczne zestawienie operacji"</span>
+│   ├── pkobp/              <span class="c">← CSV "Zestawienie operacji"</span>
+│   ├── alior/  revolut/    <span class="c">← CSV</span>
+│   ├── velo/               <span class="c">← PDF "Historia rachunku" / "Historia karty"</span>
+│   └── bnp/                <span class="c">← XLSX "Zestawienie operacji" (GOonline)</span>
+└── ustawienia/             <span class="c">← settings; created and filled in by the app</span>
+    ├── kategorie.yaml      <span class="c">optional — rules from a file (without it: built-in)</span>
+    ├── reguly_wlasne.json  <span class="c">rules added in the app</span>
+    ├── konfiguracja.json   <span class="c">language, currency, FIRE goal, thresholds, kids and events tags, card names</span>
+    ├── override.json       <span class="c">manual categories of single transactions</span>
+    ├── tagi.json  zwroty.json  budzety.json  kategorie_wlasne.json</div>
+<p style="color:var(--mut);font-size:15px">To start, <code>wydatki.html</code> and your statements are enough — all settings files are optional. The folder and file names are literal and stay in Polish.</p>
+
+<h2>6. Monthly routine (about 10 minutes)</h2>
+<ol class="routine">
+  <li>Download last month's statements and drop them into <code>dane/</code> (e.g. <code>dane/ofx/</code>) (old files can stay — duplicates are not counted).</li>
+  <li>Open the app and the folder; check the bar: number of files and transactions per bank, warnings.</li>
+  <li>Look at "Other uncategorized" and fix categories — accept the rule suggestion so the same happens next month.</li>
+  <li>Mark "to be refunded" and tag trips or events.</li>
+  <li>Check the Budgets view and the FIRE card.</li>
+  <li>Firefox, Safari, Brave: "save settings backup" and move the file into <code>ustawienia/</code>.</li>
+</ol>
+
+<p style="color:var(--mut);font-size:15px">Polski: <a href="jak-to-dziala.html" style="color:var(--acc)">Jak działa Wydatki</a>.</p>
+
+<footer>Wydatki — this description matches version 0.4.0. No network, no accounts, no installation.</footer>
+</main>
+</body>
+</html>

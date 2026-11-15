@@ -17,7 +17,7 @@ SRC = os.path.join(WEB, "src")
 DIST = os.path.join(WEB, "dist")
 
 # kolejność ma znaczenie: zależności przed użyciem
-SKRYPTY = ["rdzen/model.js", "rdzen/csv.js", "rdzen/pdf.js", "rdzen/xlsx.js", "parsery/banki.js", "reguly/reguly.js",
+SKRYPTY = ["rdzen/i18n.js", "rdzen/slownik.js", "rdzen/model.js", "rdzen/csv.js", "rdzen/pdf.js", "rdzen/xlsx.js", "rdzen/ofx.js", "parsery/banki.js", "reguly/reguly.js",
            "rdzen/import.js", "rdzen/magazyn.js", "dashboard/dashboard.js", "app.js"]
 MOTYW = 'try{var t=localStorage.getItem("theme");if(t)document.documentElement.dataset.theme=t}catch(e){}'
 
@@ -48,13 +48,24 @@ def js_str(obj):
     return json.dumps(obj, ensure_ascii=False).replace("</", "<\\/")
 
 
-def demo():
-    out = []
-    for root, _, files in os.walk(os.path.join(WEB, "demo")):
+BINARNE = (".pdf", ".xlsx")
+
+
+def demo(podkatalog, prefiks, pomin=()):
+    """Pliki demo: tekst wprost, PDF/XLSX jako base64 (aplikacja robi z nich File i czyta tym samym czytnikiem
+    co prawdziwe wyciągi). pomin: podfoldery należące do innego demo (demo/en w demo PL)."""
+    baza, out = os.path.join(WEB, *podkatalog), []
+    for root, dirs, files in os.walk(baza):
+        dirs[:] = [d for d in dirs if os.path.relpath(os.path.join(root, d), baza) not in pomin]
         for n in sorted(files):
             p = os.path.join(root, n)
-            out.append({"sciezka": "Wydatki-demo/" + os.path.relpath(p, os.path.join(WEB, "demo")).replace(os.sep, "/"),
-                        "tekst": czytaj(p)})
+            wpis = {"sciezka": prefiks + os.path.relpath(p, baza).replace(os.sep, "/")}
+            if n.lower().endswith(BINARNE):
+                with open(p, "rb") as f:
+                    wpis["b64"] = base64.b64encode(f.read()).decode()
+            else:
+                wpis["tekst"] = czytaj(p)
+            out.append(wpis)
     return sorted(out, key=lambda x: x["sciezka"])
 
 
@@ -65,7 +76,9 @@ def sha256_csp(tekst):
 def main():
     skrypt = ("globalThis.W = globalThis.W || {};\n"
               f"W.DOMYSLNE_REGULY = {js_str(czytaj(SRC, 'reguly', 'kategorie.domyslne.yaml'))};\n"
-              f"W.DEMO = {js_str(demo())};\n"
+              f"W.DOMYSLNE_REGULY_EN = {js_str(czytaj(SRC, 'reguly', 'kategorie.domyslne.en.yaml'))};\n"
+              f"W.DEMO = {js_str(demo(['demo'], 'Wydatki-demo/', pomin=('en',)))};\n"
+              f"W.DEMO_EN = {js_str(demo(['demo', 'en'], 'Wydatki-demo/'))};\n"
               + "\n".join(czytaj(SRC, p) for p in SKRYPTY))
     zle = [m.group(0) for p in SKRYPTY for m in ZAKAZANE.finditer(czytaj(SRC, p))]
     if zle:

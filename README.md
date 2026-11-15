@@ -1,12 +1,14 @@
 # Wydatki — dashboard, który nie wysyła Twoich danych nikomu
 
+🇬🇧 **[English version → README.en.md](README.en.md)**
+
 **[▶ Zobacz demo](https://wydatki-app.github.io/wydatki/#demo)** · **[⬇ Pobierz wydatki.html](https://github.com/wydatki-app/wydatki/releases/latest/download/wydatki.html)** · **[❓ Jak to działa](https://wydatki-app.github.io/wydatki/jak-to-dziala.html)**
 
 [![Jak działa Wydatki: wyciągi do folderu → rozpoznanie banku → kontrola i duplikaty → kategorie i reguła z Twojej poprawki → dashboard i cel FIRE](docs/animacja.gif)](https://wydatki-app.github.io/wydatki/animacja.html)
 
 *Cały proces w 25 sekundach (dane fikcyjne). Krok po kroku — kolejność reguł, warstwy kosztu życia, gdzie zapisują się zmiany: [jak to działa](https://wydatki-app.github.io/wydatki/jak-to-dziala.html).*
 
-Wrzucasz wyciągi z banku (CSV, PDF lub XLSX), dostajesz automatyczne kategorie, budżety, trendy
+Wrzucasz wyciągi z banku (CSV, PDF, XLSX albo OFX/QFX), dostajesz automatyczne kategorie, budżety, trendy
 i odpowiedź na pytanie „ile naprawdę wydaję co miesiąc” — także w przeliczeniu na kapitał potrzebny do FIRE.
 
 Cała aplikacja to **jeden plik HTML**, który działa w Twojej przeglądarce. Bez instalacji, bez konta, bez serwera.
@@ -27,7 +29,8 @@ Cała aplikacja to **jeden plik HTML**, który działa w Twojej przeglądarce. B
    │   ├── alior/        ← historia karty → CSV
    │   ├── mbank/        ← historia rachunku → CSV
    │   ├── pkobp/        ← historia rachunku → CSV
-   │   └── bnp/          ← GOonline: Zestawienie operacji → XLSX
+   │   ├── bnp/          ← GOonline: Zestawienie operacji → XLSX
+   │   └── ofx/          ← dowolny bank z eksportem OFX/QFX („Download for Quicken”)
    └── ustawienia/       ← tu trafią Twoje kategorie, tagi i budżety
    ```
 3. Otwórz `wydatki.html` (dwuklik) → **Wybierz folder Wydatki**.
@@ -38,7 +41,8 @@ Bank jest rozpoznawany po treści pliku — podfoldery służą tylko porządkow
 
 | Funkcja | Opis |
 |---|---|
-| Import | Millennium, VeloBank (PDF), Revolut (2 formaty), Alior, mBank, PKO BP, BNP Paribas (XLSX); scalanie i usuwanie duplikatów z wielu eksportów |
+| Import | Millennium, VeloBank (PDF), Revolut (2 formaty), Alior, mBank, PKO BP, BNP Paribas (XLSX), OFX/QFX z dowolnego banku; scalanie i usuwanie duplikatów z wielu eksportów |
+| Język i waluta | interfejs po polsku lub angielsku (przełącznik na starcie i w Ustawieniach); waluta główna z ustawień albo najczęstsza w plikach — transakcje w innych walutach są pomijane i zgłaszane, bez przeliczania kursów |
 | Banki i karty | wydatki wg banku → karty/rachunku (tylko 4 ostatnie cyfry), zmiana do średniej; klik = transakcje z tego źródła; własne nazwy kart, np. „Karta syna” |
 | Kategorie | automatyczne z reguł (`kategorie.yaml`), ręczna korekta jednym kliknięciem, własne kategorie |
 | Tagi | „Wakacje 2026”, „Dzieci”, „Prezenty” — koszt wyjazdu czy hobby w poprzek kategorii |
@@ -69,7 +73,7 @@ Szczegóły i jak to zweryfikować: [BEZPIECZENSTWO.md](BEZPIECZENSTWO.md).
 
 ## Ograniczenia
 
-- Obsługiwane banki: Millennium, VeloBank (PDF), Revolut, Alior, mBank, PKO BP, BNP Paribas (XLSX, pierwszy arkusz, operacje w PLN). Inny bank? [Zgłoś](https://github.com/wydatki-app/wydatki/issues/new?template=prosba-o-bank.yml).
+- Obsługiwane banki: Millennium, VeloBank (PDF), Revolut, Alior, mBank, PKO BP, BNP Paribas (XLSX, pierwszy arkusz) oraz każdy bank z eksportem OFX/QFX. Jedna waluta główna naraz (bez przeliczania kursów). Inny bank? [Zgłoś](https://github.com/wydatki-app/wydatki/issues/new?template=prosba-o-bank.yml).
 - **Zapis zmian:** Chrome/Edge zapisują kategorie, tagi i budżety prosto do folderu. Firefox/Safari trzymają je w pamięci przeglądarki — używaj „zapisz kopię ustawień” i przenoś `wydatki-ustawienia.json` do `ustawienia/` (pasek przypomina po 10 zmianach lub 3 dniach bez kopii). Wyczyszczenie danych przeglądarki bez kopii = utrata ręcznych zmian; wyciągi bankowe są bezpieczne.
 - Chrome/Edge nie widzą plików z dwukropkiem „:” w nazwie (np. `shared-text-2026-10-01 11:39:03.csv` z telefonu) — zmień nazwę pliku.
 - Projekt hobbystyczny, non-profit, **bez gwarancji i bez wsparcia technicznego**.

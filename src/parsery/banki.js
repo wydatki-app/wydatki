@@ -5,6 +5,10 @@
   const { parseAmount, round2, mk, konto } = W.model;
   const { wiersze, slowniki } = W.csv;
   const t = s => (s || "").trim();
+  // kod waluty z pliku: puste = PLN (jak dotąd), 3 litery = kod, cokolwiek innego = "XXX" (ISO: brak waluty) —
+  // fail closed: taki wiersz nie trafia do sum w żadnej walucie głównej, import go zgłasza
+  const kodWaluty = s => { const w = t(s).toUpperCase(); return !w ? "PLN" : /^[A-Z]{3}$/.test(w) ? w : "XXX"; };
+  const bezKodu = s => (s || "").replace(/\b[A-Z]{3}\b/g, "");
   // numer z pliku → "k1234"/"r1234" (tx.konto); import składa z tego tx.zr = "bank:k1234"
   const KARTA_MASKA = /^\d{4,6}[X*]{4,12}\d{4}$/i;            // "4249 XXXX XXXX 0001", "424912******0001"
   const RACHUNEK_NR = /^(PL)?\d{26}$/i;
@@ -33,13 +37,13 @@
   // --- Revolut: eksport z aplikacji -------------------------------------------
   // Type,Product,Started Date,Completed Date,Description,Amount,Fee,Currency,State,Balance
   function revolutDk(data, kwota, saldo) {
-    const sal = parseAmount(t((saldo || "").replace(/PLN/g, "")));
+    const sal = parseAmount(t(bezKodu(saldo)));
     return sal == null ? null : ["REV", data, round2(kwota), round2(sal)];
   }
 
   // opłata z pliku: skończona liczba ≥ 0, inaczej 0 (ujemna „opłata” zaniżałaby wydatek)
   function revolutOplata(s) {
-    const f = parseAmount(t((s || "").replace(/PLN/g, "")));
+    const f = parseAmount(t(bezKodu(s)));
     return f != null && Number.isFinite(f) && f >= 0 ? f : 0;
   }
 
@@ -49,8 +53,6 @@
       if (t(r["State"]).toUpperCase() !== "COMPLETED") continue;
       const typ = t(r["Type"]);
       if (typ === "Topup" || typ === "Transfer") continue;     // przepływ własny
-      const cur = t(r["Currency"]);
-      if (cur && cur !== "PLN") continue;
       const amount = parseAmount(r["Amount"]);
       const fee = revolutOplata(r["Fee"]);
       if (amount == null) continue;
@@ -59,6 +61,7 @@
       const opis = t(r["Description"]);
       const tx = amount < 0 ? mk(data, opis, "", Math.abs(amount) + fee, null) : mk(data, opis, "", null, amount);
       tx.dk = revolutDk(data, amount < 0 ? amount - fee : amount, r["Balance"]);
+      tx.wal = kodWaluty(r["Currency"]);
       out.push(tx);
     }
     return out;
@@ -76,25 +79,29 @@
     return `${m[3]}-${pad2(MIESIACE[m[1]])}-${pad2(parseInt(m[2], 10))}`;
   }
 
-  const stmtKwota = s => parseAmount(t((s || "").replace(/PLN/g, "")));
+  const stmtKwota = s => parseAmount(t(bezKodu(s)));
+  const maKod = (s, w) => (s || "").split(/[^A-Z]+/).includes(w);   // "-24.35 PLN" zawiera kod PLN
 
-  // konta walutowe: [waluta obca, PLN] — bierzemy kolumnę z "PLN"
-  function stmtKwotaPln(row) {
+  // konta walutowe: [waluta obca, równowartość w walucie głównej] — bierzemy kolumnę w walucie głównej;
+  // bez niej (waluta null albo brak kolumny) — kwota w walucie konta
+  function stmtKwotaW(row, waluta, walKonta) {
     const k3 = row[3] || "", k4 = row[4] || "";
-    if (k3.includes("PLN")) return stmtKwota(k3);
-    if (k4.includes("PLN")) return stmtKwota(k4);
-    return null;
+    if (waluta && maKod(k3, waluta)) return [stmtKwota(k3), waluta];
+    if (waluta && maKod(k4, waluta)) return [stmtKwota(k4), waluta];
+    return [stmtKwota(k3), walKonta];
   }
 
-  function revolutStatement(tekst) {
+  // waluta: waluta główna (z importu) albo null = każda kwota w walucie swojego konta
+  function revolutStatement(tekst, waluta) {
+    waluta = /^[A-Z]{3}$/.test(waluta || "") ? waluta : null;
     const rows = wiersze(tekst), out = [];
     let start = rows.findIndex(r => r.length && t(r[0]) === "Current Accounts Transaction Statements");
     if (start < 0) start = 0;
-    let wBloku = false, pomin = false, kolFees = [];
+    let wBloku = false, pomin = false, kolFees = [], walKonta = "PLN";
     for (const row of rows.slice(start)) {
       const c0 = t(row.length ? row[0] : "");
       const m = NAGLOWEK_KONTA.exec(c0);
-      if (m) { pomin = KONTA_POMIN.test(t(m[1])); wBloku = false; continue; }
+      if (m) { pomin = KONTA_POMIN.test(t(m[1])); walKonta = m[2]; wBloku = false; continue; }
       if (row[0] === "Date" && row[1] === "Description" && row[2] === "Category") {
         // kolumny "Fees" z nagłówka bloku (konta walutowe: [waluta obca, PLN]; układ bywa przesunięty)
         kolFees = row.map((k, j) => t(k) === "Fees" ? j : -1).filter(j => j >= 0);
@@ -106,15 +113,16 @@
       if (pomin || row.length < 5) continue;
       const kat = t(row[2]);
       if (kat === "Top up") continue;                          // zasilenie = przepływ własny
-      const amount = stmtKwotaPln(row);
+      const [amount, wal] = stmtKwotaW(row, waluta, walKonta);
       if (amount == null) continue;
       // "Others" = przelewy do/od osób. Wychodzący to wydatek; przychodzący pomijamy
       // (zasilenie przelewem; druga strona przelewu na konto dziecka jest w pomijanym bloku)
       if (kat === "Others" && amount >= 0) continue;
-      const fee = amount < 0 ? revolutOplata(kolFees.map(j => row[j] || "").find(s => s.includes("PLN"))) : 0;
+      const fee = amount < 0 ? revolutOplata(kolFees.map(j => row[j] || "").find(s => maKod(s, wal))) : 0;
       const opis = t(row[1]);
       const tx = amount < 0 ? mk(data, opis, "", round2(Math.abs(amount) + fee), null) : mk(data, opis, "", null, amount);
-      if ((row[3] || "").includes("PLN")) tx.dk = revolutDk(data, amount - fee, row.length > 4 ? row[4] : null);
+      if (maKod(row[3], wal)) tx.dk = revolutDk(data, amount - fee, row.length > 4 ? row[4] : null);
+      tx.wal = wal;
       out.push(tx);
     }
     return out;
@@ -274,7 +282,6 @@
       if (r.length < 6) continue;
       const typ = spacje(r[2]);
       if (/^Blokada/i.test(typ) || /rozliczeniu/i.test(r[5] || "")) continue;   // autoryzacja — wróci jako operacja
-      if (t(r[4]) && t(r[4]).toUpperCase() !== "PLN") continue;
       const kwota = parseAmount(r[3]);
       if (kwota == null || kwota === 0) continue;
       const p = pkoPola(r);
@@ -296,6 +303,7 @@
       }
       const tx = kwota < 0 ? mk(data, opis, odb, Math.abs(kwota), null) : mk(data, opis, odb, null, kwota);
       tx.konto = kontoZNumeru(p["Numer karty"]);
+      tx.wal = kodWaluty(r[4]);
       out.push(tx);
     }
     return out;
@@ -331,8 +339,6 @@
       if (t(r["Data odrzucenia"])) continue;                   // odrzucona — nie obciążyła rachunku
       const status = t(r["Status"]);
       if (status && !/^zrealizowan/i.test(status)) continue;   // blokady / w realizacji wrócą jako zrealizowane
-      const wal = t(r["Waluta"]).toUpperCase();
-      if (wal && wal !== "PLN") continue;
       const data = bnpData(r["Data transakcji"]) || bnpData(r["Data zaksięgowania"]);
       if (!data) continue;
       const kwota = parseAmount(r["Kwota"]);
@@ -347,16 +353,43 @@
       tx.konto = KARTA_MASKA.test(nr) ? konto("k", nr) : BNP_KARTA.test(prod) ? "k" : prod ? "r" : "";
       const saldo = parseAmount(r["Saldo po transakcji"]);
       if (saldo != null) tx.dk = ["BNP", data, round2(kwota), round2(saldo)];   // identyczne zakupy różnią się saldem
+      tx.wal = kodWaluty(r["Waluta"]);
       out.push(tx);
+    }
+    return out;
+  }
+
+  // --- OFX / QFX (dowolny bank; czytnik W.ofx) ------------------------------------
+  // kwota ze znakiem (TRNAMT < 0 = obciążenie), opis = NAME + MEMO, FITID = klucz deduplikacji,
+  // waluta: CURRENCY/CURSYM transakcji albo CURDEF wyciągu; rachunek → 4 ostatnie cyfry ACCTID
+  function ofx(tekst) {
+    const w = W.ofx.czytaj(tekst);
+    if (!w) return null;
+    const out = [];
+    for (const wyc of w.wyciagi) {
+      const nr = konto(wyc.karta ? "k" : "r", wyc.konto);
+      for (const x of wyc.txs) {
+        const data = W.ofx.data(x.dtp) || W.ofx.data(x.dtu);
+        const kwota = parseAmount(x.kwota || "");
+        if (!data || kwota == null || !Number.isFinite(kwota) || kwota === 0) continue;
+        const nazwa = t(x.nazwa), memo = t(x.memo);
+        const opis = memo && !nazwa.toLowerCase().includes(memo.toLowerCase()) ? t(`${nazwa} ${memo}`) : nazwa || memo;
+        const tx = kwota < 0 ? mk(data, opis, "", Math.abs(kwota), null) : mk(data, opis, "", null, kwota);
+        if (W.ofx.FITID_OK.test(x.fitid || "")) tx.dk = ["OFX", nr, x.fitid];      // FITID unikalny w rachunku
+        tx.konto = nr;
+        tx.wal = kodWaluty(x.walutaTx || wyc.waluta || "");
+        out.push(tx);
+      }
     }
     return out;
   }
 
   // --- rozpoznanie banku po treści (nie po folderze) ---------------------------
   // kolejność BANKI = kolejność scalania (jak w Pythonie: Millennium, Velo, Revolut, Alior)
-  const BANKI = ["millennium", "velo", "revolut", "alior", "mbank", "pkobp", "bnp"];
+  const BANKI = ["millennium", "velo", "revolut", "alior", "mbank", "pkobp", "bnp", "ofx"];
 
   function rozpoznaj(tekst) {
+    if (W.ofx.jestOfx(tekst)) return "ofx";
     const poczatek = tekst.replace(/^﻿/, "").slice(0, 4000);
     if (poczatek.includes('"Numer rachunku/karty"') || poczatek.startsWith("Numer rachunku/karty,")) return "millennium";
     if (poczatek.startsWith("Type,Product,Started Date")) return "revolut";
@@ -369,17 +402,20 @@
     return null;
   }
 
-  function parsuj(bank, tekst) {
+  // waluta: waluta główna albo null (pierwsze przejście importu: każda transakcja we własnej walucie).
+  // Banki tylko-PLN (Millennium, Velo, Alior, mBank) nie mają kolumny waluty → import uzupełnia tx.wal = "PLN".
+  function parsuj(bank, tekst, waluta) {
     if (bank === "millennium") return millennium(tekst);
     if (bank === "revolut") return tekst.replace(/^﻿/, "").startsWith("Type,Product,Started Date")
-      ? revolutApp(tekst) : revolutStatement(tekst);
+      ? revolutApp(tekst) : revolutStatement(tekst, waluta);
     if (bank === "alior") return alior(tekst);
     if (bank === "velo") return velo(tekst);
     if (bank === "mbank") return mbank(tekst);
     if (bank === "pkobp") return pkobp(tekst);
     if (bank === "bnp") return bnp(tekst);
+    if (bank === "ofx") return ofx(tekst);
     return null;
   }
 
-  W.banki = { BANKI, rozpoznaj, parsuj, millennium, revolutApp, revolutStatement, alior, mbank, velo, pkobp, bnp };
+  W.banki = { BANKI, rozpoznaj, parsuj, millennium, revolutApp, revolutStatement, alior, mbank, velo, pkobp, bnp, ofx };
 })(globalThis.W = globalThis.W || {});

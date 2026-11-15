@@ -71,7 +71,7 @@
 
   // Źródło transakcji: "bank" albo "bank:k1234" / "bank:r1234" (k = karta, r = rachunek, 4 ostatnie cyfry;
   // bez cyfr, gdy wyciąg ich nie podaje). Pełny numer nigdy nie wychodzi z parsera.
-  const ZRODLO_RE = /^(millennium|velo|revolut|alior|mbank|pkobp|bnp)(|:[kr]|:[kr]\d{4})$/;   // bez zagnieżdżonych kwantyfikatorów
+  const ZRODLO_RE = /^(millennium|velo|revolut|alior|mbank|pkobp|bnp|ofx)(|:[kr]|:[kr]\d{4})$/;   // bez zagnieżdżonych kwantyfikatorów
   const KONTO_RE = /^([kr]|[kr]\d{4})$/;
   function konto(rodzaj, numer) {
     const cyfry = String(numer || "").replace(/\D/g, "");

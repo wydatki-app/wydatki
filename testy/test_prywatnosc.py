@@ -26,10 +26,10 @@ API_SIECI = re.compile(r"\b(fetch\s*\(|XMLHttpRequest|WebSocket|EventSource|send
 ADRES = re.compile(r"\b(?:https?|wss?|ftp)://[^\s\"'<>)]{1,200}", re.I)
 PRELOAD = re.compile(r"<link[^>]+rel=[\"']?(prefetch|preconnect|dns-prefetch|preload|prerender)", re.I)
 
-WYCIAGI = re.compile(r"\.(csv|pdf|xlsx|xls|ods|ofx|qif|mt940|sta)$", re.I)
+WYCIAGI = re.compile(r"\.(csv|pdf|xlsx|xls|ods|ofx|qfx|qif|mt940|sta)$", re.I)
 USTAWIENIA = re.compile(r"(^|/)(override|tagi|zwroty|kategorie_wlasne|budzety|reguly_wlasne)\.json$|(^|/)wydatki-ustawienia.*\.json$", re.I)
 DOZWOLONE_MIEJSCA = re.compile(r"^(demo|testy)/")
-GITIGNORE_WYMAGANE = ["*.csv", "*.pdf", "*.xlsx", "wydatki-ustawienia*.json", "override.json", "tagi.json", "zwroty.json"]
+GITIGNORE_WYMAGANE = ["*.csv", "*.pdf", "*.xlsx", "*.ofx", "*.qfx", "wydatki-ustawienia*.json", "override.json", "tagi.json", "zwroty.json"]
 
 bledy = []
 

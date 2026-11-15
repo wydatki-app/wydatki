@@ -220,13 +220,145 @@ TEST = r"""
   const czekaj = async () => { for (let i = 0; i < 100; i++) await null; };
   try {
     localStorage.clear();
+    // 0. słownik PL/EN: te same klucze, te same {parametry}, formy liczby mnogiej; tH escapuje
+    {
+    const I = W.i18n, S = I.SLOWNIK;
+    const kPl = Object.keys(S.pl), brakEn = kPl.filter(k => !(k in S.en)), brakPl = Object.keys(S.en).filter(k => !(k in S.pl));
+    ok("i18n: te same klucze PL i EN" + (brakEn.length || brakPl.length ? ` — brak EN: ${brakEn.slice(0, 5)}; brak PL: ${brakPl.slice(0, 5)}` : ""), !brakEn.length && !brakPl.length);
+    const parametry = v => [...new Set((typeof v === "object" ? Object.values(v).join(" ") : String(v)).match(/\{\w+\}/g) || [])].sort().join(",");
+    const zleP = kPl.filter(k => k in S.en && parametry(S.pl[k]) !== parametry(S.en[k]));
+    ok("i18n: te same {parametry} w PL i EN" + (zleP.length ? ": " + zleP.slice(0, 5) : ""), !zleP.length);
+    const puste = kPl.filter(k => [S.pl[k], S.en[k]].some(v => v === "" || v == null));
+    ok("i18n: brak pustych tłumaczeń" + (puste.length ? ": " + puste.slice(0, 5) : ""), !puste.length);
+    const mnogie = kPl.filter(k => typeof S.pl[k] === "object");
+    ok("i18n: liczba mnoga PL ma one/few/many, EN one/other", mnogie.every(k => ["one", "few", "many"].every(f => f in S.pl[k]) && ["one", "other"].every(f => f in S.en[k])));
+    I.ustaw("pl");
+    ok("i18n: PL liczba mnoga 1/3/5/22", ["imp.zmian"].every(k => I.t(k, {n: 1}) === "1 zmiana" && I.t(k, {n: 3}) === "3 zmiany" && I.t(k, {n: 5}) === "5 zmian" && I.t(k, {n: 22}) === "22 zmiany"));
+    const ladunek = '<img src=x onerror="window.PWNED=7">';
+    const th = I.tH("imp.nierozpoznane", {lista: ladunek});
+    ok("i18n: tH escapuje parametr", !th.includes("<img") && th.includes("&lt;img"));
+    ok("i18n: tH zamienia tylko tokeny [b]/[code]", I.tH("start.lead").includes("<b>") && !I.t("start.lead").includes("[b]"));
+    const lead = document.querySelector("#start .lead");
+    ok("i18n: data-i18n-h jako węzły DOM ([b] → <b>, bez znaczników z tekstu)", lead && lead.querySelector("b") && !lead.innerHTML.includes("["));
+    I.SLOWNIK.pl["test.h"] = '[b]x[/b] <img src=x onerror="window.PWNED=9">';
+    const el = document.createElement("p"); el.dataset.i18nH = "test.h"; const box = document.createElement("div"); box.appendChild(el);
+    I.zastosuj(box); delete I.SLOWNIK.pl["test.h"];
+    ok("i18n: wezly() — znaczniki z tekstu jako tekst, nie HTML", !box.querySelector("img") && box.querySelector("b") && box.textContent.includes("<img"));
+    ok("i18n: brak klucza → klucz (bez wyjątku)", I.t("nie.ma.takiego") === "nie.ma.takiego");
+    ok("i18n: język spoza allowlisty odrzucony", !I.ustaw("xx") && !I.ustaw("__proto__") && I.jezyk() === "pl");
+    let rj = await W.api("/api/konfiguracja", {method: "POST", body: JSON.stringify({jezyk: "<b>"})});
+    ok("i18n: konfiguracja.jezyk spoza allowlisty → 400", rj.status === 400);
+    I.ustaw("en");
+    ok("i18n: EN formaty liczb", I.liczba(1234.5, 2) === "1,234.50");
+    I.zastosuj(document.getElementById("start"));
+    ok("i18n: ekran startowy po angielsku", document.getElementById("btn-folder").textContent === S.en["start.folder"] && document.documentElement.lang === "en");
+    I.ustaw("pl"); I.zastosuj(document.getElementById("start"));
+    ok("i18n: PL formaty kwot", I.kwota(12345.5, 2).replace(/\s/g, " ") === "12 345,50 zł" && I.kwotaH(12345) === "12 345<small>zł</small>".replace(" ", "\u00a0"));
+    }
+    // 0b. waluta główna (B13): autodetekcja, ustawienie, pomijanie innych walut bez mieszania sum
+    {
+    const REV = "Type,Product,Started Date,Completed Date,Description,Amount,Fee,Currency,State,Balance\n"
+      + "CARD_PAYMENT,Current,2026-10-01 10:00:00,2026-10-01 10:00:00,SKLEP PL,-10.00,0.00,PLN,COMPLETED,100.00\n"
+      + "CARD_PAYMENT,Current,2026-10-02 10:00:00,2026-10-02 10:00:00,SHOP US,-5.00,0.00,USD,COMPLETED,50.00\n"
+      + "CARD_PAYMENT,Current,2026-10-03 10:00:00,2026-10-03 10:00:00,SHOP US 2,-7.00,0.00,USD,COMPLETED,43.00\n"
+      + "CARD_PAYMENT,Current,2026-10-04 10:00:00,2026-10-04 10:00:00,ZLA WALUTA,-9.00,0.00,<b>,COMPLETED,34.00\n";
+    const plik = {sciezka: "r/rev.csv", tekst: REV};
+    let im = W.importuj([plik]);
+    ok("waluta: autodetekcja = najczęstsza (USD)", im.waluta === "USD" && im.txs.length === 2 && im.txs.every(x => /^SHOP/.test(x.opis)));
+    ok("waluta: inne waluty zgłoszone, nie zsumowane", im.inneWaluty.length === 1 && im.inneWaluty[0].n === 2 && im.inneWaluty[0].waluty.join() === "PLN,XXX");
+    im = W.importuj([plik], {waluta: "PLN"});
+    ok("waluta: ustawiona PLN — tylko PLN", im.waluta === "PLN" && im.txs.length === 1 && im.txs[0].opis === "SKLEP PL");
+    ok("waluta: XXX/nieznany kod jako waluta główna odrzucony", ["XXX", "ABC", "<b>"].every(w => W.importuj([plik], {waluta: w}).waluta === "USD"));
+    const mill = {sciezka: "m/m.csv", tekst: XSS_CSV};
+    im = W.importuj([mill], {waluta: "USD"});
+    ok("waluta: bank tylko-PLN przy USD — pominięty i zgłoszony", im.txs.length === 0 && im.inneWaluty[0].waluty.join() === "PLN");
+    const EUR = '"Current Accounts Transaction Statements",,,,,\n"Euro (EUR)",,,,,\n'
+      + 'Date,Description,Category,"Money in/out","Money in/out",Balance\n"Oct 3, 2026","CAFE PARIS",Merchant,"-10.00 EUR","-43.00 PLN","90.00 EUR"\nTotal,,,,,\n';
+    im = W.importuj([{sciezka: "r/eur.csv", tekst: EUR}], {waluta: "PLN"});
+    ok("waluta: Revolut konto EUR — równowartość w PLN", im.txs.length === 1 && im.txs[0].obc === 43);
+    im = W.importuj([{sciezka: "r/eur.csv", tekst: EUR}], {waluta: "EUR"});
+    ok("waluta: Revolut konto EUR przy walucie EUR — kwota w EUR", im.txs.length === 1 && im.txs[0].obc === 10);
+    for (const zla of ["usd", "US", "<b>", "XXX", "ABC"]) {
+      const r = await W.api("/api/konfiguracja", {method: "POST", body: JSON.stringify({waluta: zla})});
+      ok(`waluta: konfiguracja ${zla} odrzucona (400)`, r.status === 400);
+    }
+    ok("waluta: konfiguracja USD przyjęta", (await W.api("/api/konfiguracja", {method: "POST", body: '{"waluta":"USD"}'})).status === 200);
+    await W.api("/api/konfiguracja", {method: "POST", body: "{}"});
+    ok("waluta: format USD/EN", (W.i18n.ustaw("en"), W.i18n.ustawWalute("USD"), W.i18n.kwota(1234.5, 2)) === "$1,234.50");
+    W.i18n.ustaw("pl"); W.i18n.ustawWalute("PLN");
+    }
+    // 0c. OFX/QFX (B11–B12): SGML i XML, FITID, waluta, ładunki; dashboard po angielsku z regułami EN
+    {
+    const TX = (dt, kw, fit, name, memo) => `<STMTTRN><TRNTYPE>DEBIT<DTPOSTED>${dt}<TRNAMT>${kw}<FITID>${fit}<NAME>${name}${memo != null ? "<MEMO>" + memo : ""}</STMTTRN>\n`;
+    const SGML = "OFXHEADER:100\nDATA:OFXSGML\nVERSION:102\nENCODING:USASCII\n\n<OFX><BANKMSGSRSV1><STMTTRNRS><STMTRS><CURDEF>USD"
+      + "<BANKACCTFROM><BANKID>000000000<ACCTID>000012345678<ACCTTYPE>CHECKING</BANKACCTFROM><BANKTRANLIST><DTSTART>20261001<DTEND>20261031\n"
+      + TX("20261003120000.000[-5:EST]", "-45.67", "A1", "WALMART SUPERCENTER", "POS PURCHASE")
+      + TX("20261004", "-12.00", "A2", "&lt;img id=&quot;xss8&quot; src=x onerror=&quot;window.PWNED=8&quot;&gt;", "")
+      + "<STMTTRN><TRNTYPE>CREDIT<DTPOSTED>20261005<TRNAMT>20.00<FITID>A3<NAME>AMAZON REFUND</STMTTRN>\n"
+      + TX("20260231", "-1.00", "A4", "BAD DATE") + TX("20261006", "-3.00", "__proto__", "PROTO SHOP")
+      + TX("20261007", "-9.99", "A6", "NETFLIX.COM") + TX("20261008", "-15.49", "A7", "NETFLIX.COM")
+      + "</BANKTRANLIST></STMTRS></STMTTRNRS></BANKMSGSRSV1></OFX>\n";
+    const XML = '<?xml version="1.0" encoding="UTF-8"?>\n<?OFX OFXHEADER="200" VERSION="220"?>\n<OFX><CREDITCARDMSGSRSV1><CCSTMTTRNRS><CCSTMTRS>'
+      + "<CURDEF>USD</CURDEF><CCACCTFROM><ACCTID>4000000000009876</ACCTID></CCACCTFROM><BANKTRANLIST>"
+      + "<STMTTRN><TRNTYPE>DEBIT</TRNTYPE><DTPOSTED>20261009</DTPOSTED><TRNAMT>-30.00</TRNAMT><FITID>C1</FITID><NAME>SHELL OIL 123</NAME></STMTTRN>"
+      + "<STMTTRN><TRNTYPE>DEBIT</TRNTYPE><DTPOSTED>20261010</DTPOSTED><TRNAMT>-8.00</TRNAMT><FITID>C2</FITID><NAME>CAFE EUR</NAME>"
+      + "<CURRENCY><CURRATE>1.1</CURRATE><CURSYM>EUR</CURSYM></CURRENCY></STMTTRN>"
+      + "</BANKTRANLIST></CCSTMTRS></CCSTMTTRNRS></CREDITCARDMSGSRSV1></OFX>";
+    ok("ofx: rozpoznanie SGML i XML", W.banki.rozpoznaj(SGML) === "ofx" && W.banki.rozpoznaj(XML) === "ofx");
+    let im = W.importuj([{sciezka: "f/ofx/a.ofx", tekst: SGML}]);
+    const op = im.txs.map(x => x.opis);
+    ok("ofx: waluta USD z CURDEF, transakcje i wpływ", im.waluta === "USD" && im.txs.filter(x => x.obc).length === 5 && im.txs.some(x => x.uzn === 20));
+    ok("ofx: opis = NAME + MEMO", op.includes("WALMART SUPERCENTER POS PURCHASE"));
+    ok("ofx: błędna data odrzucona", im.odrzucone.length === 1 && im.odrzucone[0].n === 1 && !op.includes("BAD DATE"));
+    ok("ofx: rachunek → 4 ostatnie cyfry", im.txs.every(x => x.zr === "ofx:r5678"));
+    ok("ofx: FITID __proto__ bez skutków ubocznych", op.includes("PROTO SHOP") && ({}).polluted === undefined && Object.getPrototypeOf({}) === Object.prototype);
+    im = W.importuj([{sciezka: "f/ofx/a.ofx", tekst: SGML}, {sciezka: "f/ofx/b.ofx", tekst: SGML}]);
+    ok("ofx: dedup po FITID między plikami", im.txs.length === 6);
+    im = W.importuj([{sciezka: "f/ofx/c.qfx", tekst: XML}], {waluta: "USD"});
+    ok("ofx: XML 2.x, karta, transakcja w EUR pominięta", im.txs.length === 1 && im.txs[0].zr === "ofx:k9876" && im.txs[0].obc === 30 && im.inneWaluty[0].waluty.join() === "EUR");
+    const DT = SGML.replace("<OFX>", '<!DOCTYPE ofx [<!ENTITY x "y">]><OFX>');
+    im = W.importuj([{sciezka: "f/ofx/zly.ofx", tekst: DT}, {sciezka: "f/ofx/a.ofx", tekst: SGML}]);
+    ok("ofx: DOCTYPE/ENTITY odrzucony, reszta importu działa", im.bledne.length === 1 && im.bledne[0].sciezka.endsWith("zly.ofx") && im.txs.length === 6);
+    const DUZO = SGML.replace("</BANKTRANLIST>", "<STMTTRN><DTPOSTED>20261001<TRNAMT>-1<FITID>x</STMTTRN>".repeat(100001) + "</BANKTRANLIST>");
+    const t0 = Date.now();
+    im = W.importuj([{sciezka: "f/ofx/duzo.ofx", tekst: DUZO}]);
+    ok(`ofx: limit 100 000 transakcji (${Date.now() - t0} ms)`, im.bledne.length === 1 && Date.now() - t0 < 5000);
+    const SMIECI = "OFXHEADER:100\n" + "<".repeat(200000) + "<STMTTRN>" + "a".repeat(200000);
+    const t1 = Date.now(); W.importuj([{sciezka: "f/ofx/s.ofx", tekst: SMIECI}]);
+    ok(`ofx: śmieci bez zawieszenia (${Date.now() - t1} ms)`, Date.now() - t1 < 2000);
+
+    // dashboard po angielsku: reguły EN (bez kategorie.yaml), waluta $, brak polskich napisów interfejsu
+    W.i18n.ustaw("en");
+    await W.app.uruchom("test-en", [{sciezka: "test-en/dane/ofx/a.ofx", tekst: SGML}]); await czekaj();
+    const app = document.getElementById("app"), tekst = app.innerText || app.textContent;
+    const polskie = (tekst.match(/[^\n]*[ąćęłńóśźżĄĆĘŁŃÓŚŹŻ][^\n]*/g) || []).slice(0, 3);
+    ok("en: dashboard bez polskich napisów" + (polskie.length ? ": " + polskie.join(" | ") : ""), !polskie.length);
+    ok("en: kwoty w $, bez „zł”", tekst.includes("$") && !/\bzł\b/.test(tekst));
+    ok("en: nawigacja po angielsku", document.querySelector('#nav [data-v="przeglad"]').textContent === "Overview");
+    ok("en: reguły EN (Walmart → Groceries)", tekst.includes("Groceries"));
+    ok("en: rola Subscriptions w powtarzalnych obciążeniach", (document.getElementById("subs").textContent || "").includes("NETFLIX"));
+    ok("en: ładunek z OFX nie wykonany", !window.PWNED && !document.getElementById("xss8"));
+    // demo EN (D7): przycisk demo w języku EN → rachunek w USA, ustawienia EN z folderu demo
+    localStorage.clear();
+    document.getElementById("pokaz-demo").click(); for (let i = 0; i < 30; i++) await czekaj();
+    const de = document.getElementById("app").textContent;
+    ok("demo EN: OFX w USD, język z ustawień demo", /OFX\/QFX: 1 files \/ \d+ tx/.test(de) && de.includes("currency: USD") && de.includes("$"));
+    ok("demo EN: pensja wykluczona regułą EN, cashback jako wpływ", !de.includes("ACME CORP PAYROLL") && document.getElementById("wplywy").textContent.includes("Cashback"));
+    ok("demo EN: budżety z demo (Groceries)", document.getElementById("budzety").textContent.includes("Groceries"));
+    W.i18n.ustaw("pl"); W.i18n.ustawWalute("PLN");
+    }
     // 1. demo: import i dashboard
     await W.app.uruchom("demo", W.DEMO); await czekaj();
     ok("demo: dashboard widoczny", !document.getElementById("app").hidden && document.querySelector("#app .kpi"));
+    ok("demo: karta „Wg banku i karty” przed „Kategorie” (B5)",
+       !!(document.getElementById("zrodla").compareDocumentPosition(document.getElementById("legend")) & Node.DOCUMENT_POSITION_FOLLOWING));
     const dt = document.getElementById("app").textContent;
     ok("demo: Millennium 384 tr. (dane bez zmian)", dt.includes("Millennium: 1 pl. / 384 tr."));
     ok("demo: mBank i PKO BP w demo", /mBank: 1 pl\. \/ \d+ tr\./.test(dt) && /PKO BP: 1 pl\. \/ \d+ tr\./.test(dt));
-    ok("demo: informacja o VeloBank (PDF)", dt.includes("VeloBank: w demo brak przykładu") && dt.includes("dane/velo/"));
+    ok("demo: VeloBank (PDF) i BNP (XLSX) wczytane czytnikami jak prawdziwe pliki (B1–B2)",
+       /VeloBank: 1 pl\. \/ [1-9]\d* tr\./.test(dt) && /BNP Paribas: 1 pl\. \/ [1-9]\d* tr\./.test(dt));
+    ok("demo: bez komunikatu „VeloBank: w demo brak przykładu” (B4)", !dt.includes("brak przykładu"));
+    ok("demo: bez demo EN (OFX) w demo PL", !document.querySelector(".imp-bar").textContent.includes("OFX/QFX") && !W.DEMO.some(p => p.sciezka.includes("/en/")));
 
     // 1a. źródła: bank → karta/rachunek (Przegląd), filtr w Transakcjach, własne nazwy kart
     const zr = document.getElementById("zrodla"), selK = '[data-zr="z:millennium:k0001"]';
@@ -316,7 +448,9 @@ TEST = r"""
     const bnpCsv = W.xlsx.doCsv(await W.xlsx.wiersze(new Uint8Array(BNP_BAJTY)));
     const bnpTx = W.banki.bnp(bnpCsv);
     ok("bnp: XLSX rozpoznany", W.banki.rozpoznaj(bnpCsv) === "bnp");
-    ok("bnp: 5 operacji (bez odrzuconej, w realizacji, EUR, spłaty)", bnpTx.length === 5);
+    ok("bnp: 5 operacji w PLN (bez odrzuconej, w realizacji, spłaty); EUR oznaczone walutą",
+       bnpTx.filter(x => x.wal === "PLN").length === 5 && bnpTx.filter(x => x.wal === "EUR").length === 1
+       && W.importuj([{sciezka: "b/bnp.csv", tekst: bnpCsv}], {waluta: "PLN"}).txs.length === 5);
     ok("bnp: data seryjna Excela, karta, numer nie jako kontrahent", bnpTx[0].data === "2026-10-31" && bnpTx[0].obc === 21.17
        && bnpTx[0].konto === "k" && bnpTx[0].odb === "");
     ok("bnp: 2 identyczne zakupy = 2 transakcje", W.importuj([{sciezka: "b.csv", tekst: bnpCsv}]).txs.filter(t => t.opis === "SKLEP A").length === 2);

@@ -73,7 +73,8 @@ Krótka wersja: <a href="animacja.html" style="color:var(--acc)">animacja w 25 s
 
   <div class="step ty"><div class="num">1</div><div class="card">
     <div class="hd"><h3>Pobierasz wyciągi z banków</h3><span class="pill ty">Ty</span></div>
-    <p>CSV z Millennium, mBank, PKO BP, Alior i Revolut; PDF „Historia rachunku/karty” z VeloBank; XLSX „Zestawienie operacji” z BNP Paribas.
+    <p>CSV z Millennium, mBank, PKO BP, Alior i Revolut; PDF „Historia rachunku/karty” z VeloBank; XLSX „Zestawienie operacji” z BNP Paribas;
+       OFX/QFX („Download for Quicken”) z dowolnego banku, który go oferuje.
        Wrzucasz je do folderu <code>dane/</code> — najlepiej w podfolderach per bank (<code>dane/mbank/</code>, <code>dane/velo/</code>…),
        ale to tylko porządek dla Ciebie: aplikacja bierze wyciągi z całego folderu i rozpoznaje bank po treści.</p>
   </div></div>
@@ -87,7 +88,7 @@ Krótka wersja: <a href="animacja.html" style="color:var(--acc)">animacja w 25 s
   <div class="step"><div class="num">3</div><div class="card">
     <div class="hd"><h3>Rozpoznanie banku</h3><span class="pill auto">automatycznie</span></div>
     <p>Po treści, nie po nazwie: nagłówek kolumn CSV lub arkusza XLSX (np. <code>#Data operacji…#Kwota</code> = mBank) albo tekst PDF
-       („VeloBank S.A.”). Kodowanie UTF-8 lub Windows-1250 rozpoznawane samo. Nierozpoznany plik → ostrzeżenie w pasku.</p>
+       („VeloBank S.A.”), a dla OFX/QFX — nagłówek <code>OFXHEADER</code>. Kodowanie UTF-8 lub Windows-1250 rozpoznawane samo. Nierozpoznany plik → ostrzeżenie w pasku.</p>
   </div></div>
 
   <div class="step"><div class="num">4</div><div class="card">
@@ -96,7 +97,10 @@ Krótka wersja: <a href="animacja.html" style="color:var(--acc)">animacja w 25 s
       <li>Data, opis, kontrahent, kwota; przy płatności kartą — rzeczywista data zakupu.</li>
       <li>Blokady („w rozliczeniu”) pominięte — wrócą jako właściwa operacja.</li>
       <li>Wiersz z błędną datą odrzucony z ostrzeżeniem w pasku; bez poprawnej kwoty — pominięty (ochrona przed zepsutym lub podrzuconym plikiem).</li>
-      <li>PDF i XLSX: limity rozmiaru (50 MB po rozpakowaniu) i złożoności — złośliwy plik jest pomijany, karta się nie zawiesza.</li>
+      <li>PDF i XLSX: limity rozmiaru (50 MB po rozpakowaniu) i złożoności — złośliwy plik jest pomijany, karta się nie zawiesza.
+          OFX/QFX: plik z <code>DOCTYPE</code>/<code>ENTITY</code> odrzucany, limit 100 000 transakcji.</li>
+      <li>Waluta główna: z Ustawień albo najczęstsza w plikach. Transakcje w innych walutach są pomijane i zgłaszane w pasku —
+          aplikacja nie przelicza kursów i nie miesza walut w sumach. Revolut: z kont walutowych brana jest równowartość w walucie głównej.</li>
       <li>Źródło: bank oraz karta lub rachunek — tylko 4 ostatnie cyfry, pełny numer nie wychodzi z parsera.</li>
       <li>Revolut: przelewy do innych osób liczą się jako wydatek (z opłatą banku); zasilenia konta — nie.</li>
     </ul>
@@ -105,7 +109,8 @@ Krótka wersja: <a href="animacja.html" style="color:var(--acc)">animacja w 25 s
   <div class="step"><div class="num">5</div><div class="card">
     <div class="hd"><h3>Scalanie i usuwanie duplikatów</h3><span class="pill auto">automatycznie</span></div>
     <p>Eksporty z nakładającymi się okresami nie dublują wydatków: transakcja z tą samą datą, opisem i kwotą z kilku plików liczy się raz.
-       Dwie identyczne transakcje w jednym pliku (np. dwa bilety po 62 zł tego samego dnia) to dwa wydatki.</p>
+       Dwie identyczne transakcje w jednym pliku (np. dwa bilety po 62 zł tego samego dnia) to dwa wydatki.
+       OFX/QFX: duplikaty rozpoznawane po identyfikatorze transakcji z banku (<code>FITID</code>).</p>
   </div></div>
 
   <div class="step"><div class="num">6</div><div class="card">
@@ -197,11 +202,12 @@ Pliki w folderze zostają; jeśli masz zmiany bez kopii, aplikacja najpierw ostr
 │   ├── pkobp/              <span class="c">← CSV „Zestawienie operacji”</span>
 │   ├── alior/  revolut/    <span class="c">← CSV</span>
 │   ├── velo/               <span class="c">← PDF „Historia rachunku” / „Historia karty”</span>
-│   └── bnp/                <span class="c">← XLSX „Zestawienie operacji” (GOonline)</span>
+│   ├── bnp/                <span class="c">← XLSX „Zestawienie operacji” (GOonline)</span>
+│   └── ofx/                <span class="c">← OFX/QFX z dowolnego banku</span>
 └── ustawienia/             <span class="c">← tworzone i uzupełniane przez aplikację</span>
     ├── kategorie.yaml      <span class="c">opcjonalnie — reguły z pliku (bez niego: wbudowane)</span>
     ├── reguly_wlasne.json  <span class="c">reguły dodane w aplikacji</span>
-    ├── konfiguracja.json   <span class="c">cel FIRE, progi, tagi dzieci i wydarzeń, nazwy kart</span>
+    ├── konfiguracja.json   <span class="c">język, waluta, cel FIRE, progi, tagi dzieci i wydarzeń, nazwy kart</span>
     ├── override.json       <span class="c">ręczne kategorie pojedynczych transakcji</span>
     ├── tagi.json  zwroty.json  budzety.json  kategorie_wlasne.json</div>
 <p style="color:var(--mut);font-size:15px">Na start wystarczy sam <code>wydatki.html</code> i wyciągi — wszystkie pliki ustawień są opcjonalne.</p>
@@ -216,7 +222,9 @@ Pliki w folderze zostają; jeśli masz zmiany bez kopii, aplikacja najpierw ostr
   <li>Firefox, Safari, Brave: „zapisz kopię ustawień” i przenieś plik do <code>ustawienia/</code>.</li>
 </ol>
 
-<footer>Wydatki — opis działania zgodny z wersją 0.3.0. Bez sieci, bez kont, bez instalacji.</footer>
+<p style="color:var(--mut);font-size:15px">English: <a href="how-it-works.html" style="color:var(--acc)">How Wydatki works</a>.</p>
+
+<footer>Wydatki — opis działania zgodny z wersją 0.4.0. Bez sieci, bez kont, bez instalacji.</footer>
 </main>
 </body>
 </html>

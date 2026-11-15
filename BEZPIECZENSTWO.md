@@ -12,6 +12,8 @@ każdą z poniższych obietnic możesz sprawdzić samodzielnie.
 | Nie da się wstrzyknąć skryptu | CSP dopuszcza tylko skrypty o znanych hashach SHA-256; opisy transakcji są escapowane | `testy/test_przegladarka.py` — próby XSS przez opis transakcji, nazwę kategorii, tag |
 | Żadnych zależności z zewnątrz | zero bibliotek i CDN; `build.py` przerywa budowanie, gdy znajdzie `fetch`, `XMLHttpRequest`, `http(s)://` itp. | przeszukaj `wydatki.html` — brak zewnętrznych adresów |
 | Złośliwy plik nie zawiesi aplikacji | PDF i XLSX czytane własnym kodem z limitami: 50 MB po rozpakowaniu (także gdy archiwum podaje fałszywy rozmiar), liczba wierszy i elementów; XML z `DOCTYPE`/`ENTITY` odrzucany | `testy/test_przegladarka.py` — bomby ZIP i PDF, bomba encji XML |
+| OFX/QFX bez XXE i DoS | własny skaner liniowy (bez parsera XML), `DOCTYPE`/`ENTITY` odrzucane, encje tylko podstawowe i numeryczne, limit 100 000 transakcji i długości pól; identyfikator `FITID` z allowlisty znaków | `testy/test_przegladarka.py` — „ofx: …” (DOCTYPE, limit, śmieci, `__proto__`, XSS w NAME) |
+| Tłumaczenia nie otwierają drogi do XSS | `tH()` escapuje szablon i każdy parametr; jedyne znaczniki to stałe tokeny `[b]`/`[code]`; język i waluta z allowlisty | `testy/test_przegladarka.py` — „i18n: …”, „waluta: …” |
 | Numery kart i rachunków nie są przechowywane | parser zapisuje tylko 4 ostatnie cyfry jako źródło transakcji | `testy/test_przegladarka.py` — „pełny numer karty nie trafia do UI” |
 | Plik do pobrania = kod z repozytorium | wydanie budowane przez GitHub Actions z oznaczonej wersji (tag) | porównaj SHA-256 pliku z wartością w wydaniu (niżej) |
 

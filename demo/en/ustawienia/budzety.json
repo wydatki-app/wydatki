@@ -1,0 +1,29 @@
+[
+{
+"nazwa": "Groceries",
+"okres": "miesiac",
+"limit": 700,
+"kategorie": [
+"Groceries"
+],
+"tagi": []
+},
+{
+"nazwa": "Dining out",
+"okres": "miesiac",
+"limit": 250,
+"kategorie": [
+"Dining_out"
+],
+"tagi": []
+},
+{
+"nazwa": "Travel",
+"okres": "rok",
+"limit": 2500,
+"kategorie": [
+"Travel"
+],
+"tagi": []
+}
+]
