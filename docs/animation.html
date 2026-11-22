@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'">
+<title>Wydatki in 25 seconds</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--txt:#14181f;--mut:#5f6b7a;--line:#e3e7ec;--acc:#2a6fd6;--acc-soft:#e9f1fd;
+  --ok:#1f8a5b;--ok-soft:#e3f4ec;--warn:#b42318;--warn-soft:#fdecea;--szary:#8a94a3;--szary-soft:#eef0f3;--ty:#b5651d;--ty-soft:#fbf0e4;
+  --c1:#2a6fd6;--c2:#1f8a5b;--c3:#d08a1c;--c4:#9b59b6;--c5:#8a94a3}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#0f1216;--card:#171b21;--txt:#e7eaee;--mut:#9aa4b1;--line:#2a313b;
+  --acc:#5b9bf0;--acc-soft:#1a2a40;--ok:#4cc38a;--ok-soft:#16302a;--warn:#f07167;--warn-soft:#3a1d1b;--szary:#8a94a3;--szary-soft:#232a33;
+  --ty:#e3a35f;--ty-soft:#33261a;--c1:#5b9bf0;--c2:#4cc38a;--c3:#e3a35f;--c4:#b98ad0;--c5:#6b7583}}
+:root[data-theme=dark]{--bg:#0f1216;--card:#171b21;--txt:#e7eaee;--mut:#9aa4b1;--line:#2a313b;--acc:#5b9bf0;--acc-soft:#1a2a40;
+  --ok:#4cc38a;--ok-soft:#16302a;--warn:#f07167;--warn-soft:#3a1d1b;--szary-soft:#232a33;--ty:#e3a35f;--ty-soft:#33261a;
+  --c1:#5b9bf0;--c2:#4cc38a;--c3:#e3a35f;--c4:#b98ad0;--c5:#6b7583}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:820px;margin:0 auto;padding:24px 16px 48px}
+h1{font-size:26px;margin:0 0 4px}
+.lead{color:var(--mut);margin:0 0 16px}
+.scena-box{position:relative;background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;aspect-ratio:16/11;min-height:430px}
+.scena{position:absolute;inset:0;padding:22px 24px;display:flex;flex-direction:column;gap:12px;opacity:0;
+  animation:okno 25s infinite;animation-delay:calc(var(--k) * 5s - 25s)}
+.tyt{font-size:13px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--acc)}
+.opis{font-size:19px;font-weight:600;line-height:1.3}
+.pod{color:var(--mut);font-size:14px;margin-top:auto}
+/* widoczność sceny: 0–20% cyklu (5 s z 25 s) */
+@keyframes okno{0%{opacity:0}1.5%{opacity:1}18.5%{opacity:1}20%{opacity:0}100%{opacity:0}}
+/* wejście elementu w scenie: --o = sekunda od początku sceny */
+.w{opacity:0;animation:wejscie 25s infinite;animation-delay:calc(var(--k) * 5s + var(--o) * 1s - 25s)}
+/* widoczny przez 20 s od pojawienia: dłużej niż reszta sceny (≤ 5 s), krócej niż do kolejnego startu sceny (≥ 21 s) */
+@keyframes wejscie{0%{opacity:0;transform:translateY(8px)}2%{opacity:1;transform:none}79%{opacity:1;transform:none}80%,100%{opacity:0}}
+.scena .w{animation-fill-mode:both}
+/* etykieta zastępowana inną: znika (visibility, bez przenikania) w chwili --do, do końca sceny */
+.w.zn-do{animation-name:wejscie,schowaj;animation-delay:calc(var(--k) * 5s + var(--o) * 1s - 25s),calc(var(--k) * 5s + var(--do) * 1s - 25s)}
+@keyframes schowaj{0%{visibility:hidden}8%{visibility:hidden}8.1%,100%{visibility:visible}}
+/* kropki postępu */
+.kropki{display:flex;gap:8px;justify-content:center;margin:12px 0 0}
+.kropki span{width:9px;height:9px;border-radius:50%;background:var(--line);animation:kropka 25s infinite;animation-delay:calc(var(--k) * 5s - 25s)}
+@keyframes kropka{0%{background:var(--acc);transform:scale(1.25)}19.9%{background:var(--acc);transform:scale(1.25)}20%,100%{background:var(--line);transform:none}}
+/* elementy */
+.pliki{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;max-width:520px}
+.plik{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:10px;padding:9px 12px;background:var(--bg);font-family:ui-monospace,Menlo,monospace;font-size:14px}
+.ikona{width:28px;height:34px;border-radius:4px;background:var(--acc-soft);color:var(--acc);font:700 9px system-ui;display:grid;place-items:end center;padding-bottom:4px;flex:none;position:relative}
+.ikona::after{content:"";position:absolute;top:0;right:0;border-left:9px solid transparent;border-top:9px solid var(--bg)}
+.ikona.pdf{background:var(--warn-soft);color:var(--warn)}
+.folder{display:flex;align-items:center;gap:10px;font-weight:600}
+.folder i{width:34px;height:26px;border-radius:4px;background:var(--c3);position:relative;display:inline-block}
+.folder i::before{content:"";position:absolute;left:0;top:-5px;width:14px;height:6px;border-radius:3px 3px 0 0;background:var(--c3)}
+.bank{margin-left:auto;font:600 12px system-ui;border-radius:999px;padding:2px 9px;background:var(--ok-soft);color:var(--ok);white-space:nowrap}
+.tab{width:100%;border-collapse:collapse;font-size:14px}
+.tab td{padding:7px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+.tab td.o{white-space:normal;width:100%}
+.tab td.k{text-align:right;font-variant-numeric:tabular-nums}
+.znacz{font:600 12px system-ui;border-radius:999px;padding:2px 9px;white-space:nowrap}
+.znacz.zly{background:var(--warn-soft);color:var(--warn)}
+.znacz.szary{background:var(--szary-soft);color:var(--szary)}
+.znacz.ok{background:var(--ok-soft);color:var(--ok)}
+.znacz.tr{background:var(--acc-soft);color:var(--acc)}
+.skr{text-decoration:line-through;color:var(--mut)}
+.chipbox{position:relative;display:inline-block;min-width:120px;height:22px}
+.chipbox .znacz{position:absolute;right:0;top:0}
+.okno{position:absolute;right:24px;bottom:58px;width:min(360px,80%);background:var(--card);border:2px solid var(--ty);border-radius:12px;padding:12px 14px;
+  box-shadow:0 10px 30px rgba(0,0,0,.18);font-size:14px}
+.okno b{display:block;margin-bottom:4px}
+.okno .btn{display:inline-block;margin-top:8px;background:var(--ty);color:#fff;border-radius:7px;padding:4px 12px;font-weight:600}
+.okno.zn{opacity:0;animation:okienko 25s infinite;animation-delay:calc(var(--k) * 5s + var(--o) * 1s - 25s)}
+@keyframes okienko{0%{opacity:0;transform:scale(.96)}2%{opacity:1;transform:none}7%{opacity:1}8.5%,100%{opacity:0}}
+.dash{display:grid;grid-template-columns:150px 1fr;gap:22px;align-items:center}
+.donut{width:150px;height:150px;border-radius:50%;background:conic-gradient(var(--c1) 0 34%,var(--c2) 0 55%,var(--c3) 0 70%,var(--c4) 0 84%,var(--c5) 0 100%);
+  -webkit-mask:radial-gradient(circle,transparent 52%,#000 53%);mask:radial-gradient(circle,transparent 52%,#000 53%)}
+.leg{display:grid;gap:5px;font-size:14px}
+.leg i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:8px}
+.fire{border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:var(--bg)}
+.fire .big{font-size:26px;font-weight:700}
+.pasek{height:10px;border-radius:5px;background:var(--line);overflow:hidden;margin-top:8px}
+.pasek i{display:block;height:100%;width:0;background:var(--ok);border-radius:5px;animation:napelnij 25s infinite;animation-delay:calc(var(--k) * 5s + var(--o) * 1s - 25s)}
+@keyframes napelnij{0%{width:0}8%{width:72%}100%{width:72%}}
+.legenda{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--mut);margin-top:14px}
+footer{margin-top:24px;color:var(--mut);font-size:13px}
+a{color:var(--acc)}
+@media(max-width:620px){.scena{padding:16px}.opis{font-size:17px}.pliki{grid-template-columns:1fr}.dash{grid-template-columns:1fr}.donut{width:120px;height:120px}
+  .scena-box{aspect-ratio:auto;min-height:560px}.okno{right:12px;bottom:46px}}
+/* bez animacji: wszystkie sceny statycznie, jedna pod drugą */
+@media(prefers-reduced-motion:reduce){
+  .scena-box{aspect-ratio:auto;min-height:0;display:grid;gap:0}
+  .scena{position:relative;opacity:1;animation:none;border-bottom:1px solid var(--line)}
+  .w,.okno.zn{opacity:1;animation:none}
+  .w.zn-do{display:none}
+  .okno{position:static;margin-top:8px}
+  .pasek i{animation:none;width:72%}
+  .kropki{display:none}}
+</style>
+</head>
+<body>
+<main>
+<h1>Wydatki in 25 seconds</h1>
+<p class="lead">From bank statements to a FIRE goal — all locally in your browser. The data in this animation is fictional.</p>
+
+<div class="scena-box" role="img" aria-label="Animation: 1. statements into the dane (data) folder (per-bank subfolders optional), 2. bank detection, 3. transaction checks and duplicates, 4. categories from rules and a rule from your correction, 5. dashboard and FIRE goal">
+
+  <!-- 1. files -->
+  <section class="scena" style="--k:0">
+    <div class="tyt">Step 1 · you</div>
+    <div class="opis">Download statements from your banks and drop them into the <code>dane/</code> folder</div>
+    <div class="folder w" style="--k:0;--o:.3"><i></i> Wydatki/dane/</div>
+    <div class="pliki" style="grid-template-columns:1fr;max-width:560px">
+      <div class="plik w" style="--k:0;--o:.8"><span class="ikona">OFX</span>ofx/checking_oct.ofx</div>
+      <div class="plik w" style="--k:0;--o:1.3"><span class="ikona">QFX</span>ofx/credit_card.qfx</div>
+      <div class="plik w" style="--k:0;--o:1.8"><span class="ikona">CSV</span>revolut/account-statement.csv</div>
+      <div class="plik w" style="--k:0;--o:2.3"><span class="ikona pdf">PDF</span>velo/card_history.pdf</div>
+    </div>
+    <div class="pod">A subfolder per bank is just for your own tidiness — you can also drop everything in together. File names don't matter, no conversion needed.</div>
+  </section>
+
+  <!-- 2. detection -->
+  <section class="scena" style="--k:1">
+    <div class="tyt">Step 2 · automatic</div>
+    <div class="opis">The app detects the bank from the file contents</div>
+    <div class="pliki" style="grid-template-columns:1fr;max-width:560px">
+      <div class="plik"><span class="ikona">OFX</span>ofx/checking_oct.ofx<span class="bank w" style="--k:1;--o:.6">OFX · any bank</span></div>
+      <div class="plik"><span class="ikona">QFX</span>ofx/credit_card.qfx<span class="bank w" style="--k:1;--o:1.2">QFX · Quicken</span></div>
+      <div class="plik"><span class="ikona">CSV</span>revolut/account-statement.csv<span class="bank w" style="--k:1;--o:1.8">Revolut</span></div>
+      <div class="plik"><span class="ikona pdf">PDF</span>velo/card_history.pdf<span class="bank w" style="--k:1;--o:2.4">VeloBank</span></div>
+    </div>
+    <div class="pod">By the column header or PDF text, not by file or folder name — a file in the wrong subfolder still lands in the right bank. Read locally; nothing goes out to the network.</div>
+  </section>
+
+  <!-- 3. checks -->
+  <section class="scena" style="--k:2">
+    <div class="tyt">Step 3 · automatic</div>
+    <div class="opis">Transactions: checks, duplicates, own transfers</div>
+    <table class="tab">
+      <tr class="w" style="--k:2;--o:.3"><td>10/02</td><td class="o">FRESHMART 1234 SPRINGFIELD</td><td class="k">−86.40</td><td><span class="znacz ok">OK</span></td></tr>
+      <tr class="w" style="--k:2;--o:.8"><td class="skr">10/02</td><td class="o skr">FRESHMART 1234 SPRINGFIELD</td><td class="k skr">−86.40</td><td><span class="znacz szary">duplicate · counted once</span></td></tr>
+      <tr class="w" style="--k:2;--o:1.4"><td class="skr">??</td><td class="o skr">BROKEN ROW</td><td class="k skr">−12.00</td><td><span class="znacz zly">bad date · skipped</span></td></tr>
+      <tr class="w" style="--k:2;--o:2"><td>10/05</td><td class="o">TRANSFER TO SAVINGS</td><td class="k">−500.00</td><td><span class="znacz szary">excluded</span></td></tr>
+      <tr class="w" style="--k:2;--o:2.6"><td>10/06</td><td class="o">CORNER MARKET 0123</td><td class="k">−42.10</td><td><span class="znacz ok">OK</span></td></tr>
+    </table>
+    <div class="pod">Exports covering overlapping periods don't double your spending; moving money between your own accounts is not spending.</div>
+  </section>
+
+  <!-- 4. categories + rule -->
+  <section class="scena" style="--k:3">
+    <div class="tyt">Step 4 · automatic + you</div>
+    <div class="opis">Categories from rules — and your correction becomes a new rule</div>
+    <table class="tab">
+      <tr><td>10/02</td><td class="o">FRESHMART 1234</td><td class="k">−86.40</td><td><span class="chipbox"><span class="znacz ok w" style="--k:3;--o:.3">Groceries</span></span></td></tr>
+      <tr><td>10/03</td><td class="o">FUEL STOP 452</td><td class="k">−58.00</td><td><span class="chipbox"><span class="znacz tr w" style="--k:3;--o:.5">Transport</span></span></td></tr>
+      <tr><td>10/06</td><td class="o">CORNER MARKET 0123</td><td class="k">−42.10</td><td><span class="chipbox"><span class="znacz szary w zn-do" style="--k:3;--o:.7;--do:1.6">Other</span><span class="znacz ok w" style="--k:3;--o:1.6">Groceries ✎</span></span></td></tr>
+      <tr><td>10/13</td><td class="o">CORNER MARKET 0123</td><td class="k">−58.90</td><td><span class="chipbox"><span class="znacz szary w zn-do" style="--k:3;--o:.7;--do:3.4">Other</span><span class="znacz ok w" style="--k:3;--o:3.4">Groceries</span></span></td></tr>
+      <tr><td>10/20</td><td class="o">CORNER MARKET 0123</td><td class="k">−37.25</td><td><span class="chipbox"><span class="znacz szary w zn-do" style="--k:3;--o:.7;--do:3.4">Other</span><span class="znacz ok w" style="--k:3;--o:3.4">Groceries</span></span></td></tr>
+    </table>
+    <div class="okno zn" style="--k:3;--o:1.9"><b>2 more transactions have a similar description</b>
+      Assign them — and future ones — to “Groceries”? Match on: <code>corner market</code><br><span class="btn">OK</span></div>
+    <div class="pod">Order: your correction → your rules → rules from the file → “Other”.</div>
+  </section>
+
+  <!-- 5. dashboard -->
+  <section class="scena" style="--k:4">
+    <div class="tyt">Step 5 · automatic</div>
+    <div class="opis">Dashboard, budgets and a FIRE goal</div>
+    <div class="dash">
+      <div class="donut w" style="--k:4;--o:.3"></div>
+      <div class="leg w" style="--k:4;--o:.7">
+        <span><i style="background:var(--c1)"></i>Groceries · $1,220</span>
+        <span><i style="background:var(--c2)"></i>Home and bills · $760</span>
+        <span><i style="background:var(--c3)"></i>Transport · $540</span>
+        <span><i style="background:var(--c4)"></i>Subscriptions · $500</span>
+        <span><i style="background:var(--c5)"></i>Other · $580</span>
+      </div>
+    </div>
+    <div class="fire w" style="--k:4;--o:1.2">
+      <div style="font-size:13px;color:var(--mut)">Current cost of living (excluding travel, kids and one-off expenses)</div>
+      <div class="big">$3,600/mo <span style="font-size:15px;font-weight:500;color:var(--mut)">· 72% of the $5,000 goal</span></div>
+      <div class="pasek"><i style="--k:4;--o:1.5"></i></div>
+      <div style="font-size:13px;color:var(--mut);margin-top:6px">Capital at a 4% withdrawal rate: $1.08M · every $100/mo less = −$30k</div>
+    </div>
+    <div class="pod">Changes are saved in your folder (Chrome, Edge) or in the browser, with a backup reminder.</div>
+  </section>
+</div>
+
+<div class="kropki" aria-hidden="true"><span style="--k:0"></span><span style="--k:1"></span><span style="--k:2"></span><span style="--k:3"></span><span style="--k:4"></span></div>
+<div class="legenda"><span>Loop: 5 steps × 5 s</span><span>Details: <a href="how-it-works.html">how it works</a></span></div>
+<footer>Wydatki · script-free animation (CSS) · with “reduce motion” enabled in your system, the steps are shown statically.</footer>
+</main>
+</body>
+</html>

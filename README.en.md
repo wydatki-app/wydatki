@@ -4,7 +4,7 @@
 
 **[▶ See the demo](https://wydatki-app.github.io/wydatki/#demo-en)** · **[⬇ Download wydatki.html](https://github.com/wydatki-app/wydatki/releases/latest/download/wydatki.html)** · **[❓ How it works](https://wydatki-app.github.io/wydatki/how-it-works.html)**
 
-[![How Wydatki works: statements into a folder → bank detection → checks and duplicates → categories and a rule from your correction → dashboard and FIRE goal](docs/animacja.gif)](https://wydatki-app.github.io/wydatki/animacja.html)
+[![How Wydatki works: statements into a folder → bank detection → checks and duplicates → categories and a rule from your correction → dashboard and FIRE goal](docs/animation.gif)](https://wydatki-app.github.io/wydatki/animation.html)
 
 *The whole process in 25 seconds (fictional data). Step by step — rule order, living-cost layers, where your changes are saved: [how it works](https://wydatki-app.github.io/wydatki/how-it-works.html).*
 
@@ -13,7 +13,7 @@ and an answer to "how much do I really spend each month" — including the capit
 
 The whole app is **one HTML file** that runs in your browser. No installation, no account, no server.
 
-![Dashboard with fictional data](docs/dashboard.png)
+![Dashboard with fictional data (English demo)](docs/dashboard.en.png)
 
 ## Getting started (2 minutes)
 

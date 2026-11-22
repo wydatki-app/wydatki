@@ -24,6 +24,7 @@ Czysty JavaScript bez bibliotek; `build.py` (Python 3, bez zależności) skleja 
 | `demo/` | fikcyjne dane (Jan Kowalski) w układzie folderu użytkownika — wbudowane w plik jako demo; `demo/en/` = demo EN (OFX, USD) |
 | `narzedzia/generuj_dane.py` | generator fikcyjnych wyciągów CSV do `demo/dane/` (powtarzalny, seed) |
 | `narzedzia/generuj_demo_bin.py` | generator PDF VeloBank, XLSX BNP Paribas i OFX USD (`demo/en/`) — pliki binarne trafiają do buildu jako base64 i są czytane tymi samymi czytnikami co pliki z dysku |
+| `narzedzia/media.py` | obrazy do README: `docs/animation.gif` + `docs/dashboard.en.png` (z `--pl` także wersje PL); headless Firefox klatka po klatce + ffmpeg; uruchamiać po `build.py` |
 | `testy/test_przegladarka.py` | testy w Firefox (przez Marionette) i Chromium headless: import, XSS, CSP, bomby ZIP/PDF, zapis, pierwszeństwo ustawień |
 | `testy/marionette.py` | minimalny klient Marionette (stdlib): czeka na wynik testu zamiast na zdarzenie load |
 | `testy/test_prywatnosc.py` | `dist/`: CSP bez sieci, brak API sieciowych i adresów zewnętrznych; repo: brak wyciągów, `.gitignore` |
